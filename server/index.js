@@ -4,7 +4,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -217,11 +217,18 @@ if (fs.existsSync(distPath)) {
 
 app.get('/api/health', (_req, res) => {
   const modelExists = fs.existsSync(MODEL_PATH);
-  const pythonExists = fs.existsSync(PYTHON);
+  // On Linux PYTHON is a command name ('python3'), not a path — check via which
+  let pythonExists = fs.existsSync(PYTHON);
+  if (!pythonExists && process.platform !== 'win32') {
+    try { execSync(`which ${PYTHON}`, { stdio: 'ignore' }); pythonExists = true; } catch {}
+  }
   res.json({
     status: modelExists && pythonExists ? 'ok' : 'degraded',
     model: modelExists,
+    modelPath: MODEL_PATH,
     python: pythonExists,
+    pythonBin: PYTHON,
+    piperRunning: !!piperProc,
     vision: !!VISION_API_KEY,
     cachedPhrases: fs.readdirSync(CACHE_DIR).length,
   });
