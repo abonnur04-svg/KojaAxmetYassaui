@@ -321,7 +321,7 @@ app.post('/api/vision/analyze', async (req, res) => {
 
 // SPA fallback — serve index.html for all non-API routes
 if (fs.existsSync(distPath)) {
-  app.get('*', (_req, res) => {
+  app.get('/{*path}', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
