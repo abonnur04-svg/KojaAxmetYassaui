@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-const TTS_URL = 'http://localhost:3001/api/tts';
+const TTS_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/tts`
+  : '/api/tts';
 
 /* ─── In-memory blob cache (survives component remounts) ─── */
 const blobCache = new Map();

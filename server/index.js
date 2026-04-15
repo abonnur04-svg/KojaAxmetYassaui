@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 
-const PORT = process.env.TTS_PORT || 3001;
+const PORT = process.env.PORT || process.env.TTS_PORT || 3001;
 const CACHE_DIR = path.join(ROOT, '.tts-cache');
 const MODEL_PATH = path.join(ROOT, 'models', 'kk_KZ-issai-high', 'kk_KZ-issai-high.onnx');
 const PYTHON = path.join(ROOT, '.venv', 'Scripts', 'python.exe');
@@ -205,9 +205,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
-app.get('/', (_req, res) => {
-  res.json({ name: 'Khoja Ahmed Yasawi TTS Server', endpoints: ['/api/health', '/api/tts', '/api/vision/analyze'] });
-});
+// Serve built frontend in production
+const distPath = path.join(ROOT, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
 
 app.get('/api/health', (_req, res) => {
   const modelExists = fs.existsSync(MODEL_PATH);
@@ -312,6 +314,13 @@ app.post('/api/vision/analyze', async (req, res) => {
     res.status(500).json({ error: 'Image analysis failed' });
   }
 });
+
+// SPA fallback — serve index.html for all non-API routes
+if (fs.existsSync(distPath)) {
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.listen(PORT, async () => {
   console.log(`TTS server running on http://localhost:${PORT}`);

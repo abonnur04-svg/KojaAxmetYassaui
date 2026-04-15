@@ -87,7 +87,8 @@ export default function CameraRecognition() {
     try {
       const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
 
-      const res = await fetch('http://localhost:3001/api/vision/analyze', {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiBase}/api/vision/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64 }),
