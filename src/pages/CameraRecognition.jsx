@@ -6,6 +6,9 @@ import { Camera, Loader2, X } from 'lucide-react';
 
 const INSTRUCTION = "Камера ашылды. Бір рет тиіңіз — артқа. Екі рет — суретке түсіру.";
 
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const VISION_MODEL = 'gemini-2.5-flash';
+
 const PRELOAD = [
   INSTRUCTION,
   'Сурет түсірілуде. Күте жасаңыз.',
@@ -87,18 +90,41 @@ export default function CameraRecognition() {
     try {
       const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
 
-      const res = await fetch('http://localhost:3001/api/vision/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 }),
-      });
+      if (!GEMINI_API_KEY) {
+        throw new Error('VITE_GEMINI_API_KEY is not configured');
+      }
+
+      const requestBody = {
+        contents: [{
+          parts: [
+            {
+              text: `Сен Қазақстандағы Түркістан қаласындағы Қожа Ахмет Яссауи кесенесінің гидісің.\nБұл суретке қарап, онда не бейнеленгенін анықта.\nЕгер бұл кесене элементі болса (күмбез, қабырға, өрнек, қазан, жазу, декор, портал, т.б.), қазақ тілінде қысқа және нақты сипаттама бер (3-5 сөйлем).\nЕгер объект кесенемен байланысты емес, не көріп тұрғаныңды айт және кесене элементтеріне камераны бағыттауды ұсын.\nЖауап қарапайым және түсінікті болсын.\n\nЖауапты қатаң JSON форматында қайтар:\n{"object_name": "объект атауы", "description": "сипаттама", "is_mausoleum_related": true/false}`
+            },
+            { inlineData: { mimeType: 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: { responseMimeType: 'application/json' }
+      };
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${res.status}`);
+        throw new Error(err.error?.message || `Gemini API error ${res.status}`);
       }
 
-      const response = await res.json();
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('Empty response from Vision API');
+
+      const response = JSON.parse(text);
       setResult(response);
       setIsAnalyzing(false);
       speakStream(`${response.object_name}. ${response.description}`);

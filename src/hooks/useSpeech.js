@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-const TTS_URL = 'http://localhost:3001/api/tts';
+// On Vercel (no backend), leave VITE_TTS_URL unset → Web Speech API fallback
+const TTS_URL = import.meta.env.VITE_TTS_URL ?? '';
 
 /* ─── In-memory blob cache (survives component remounts) ─── */
 const blobCache = new Map();
@@ -39,6 +40,7 @@ function splitChunks(text) {
  * Fire-and-forget; safe to call on every component mount.
  */
 export function preloadPhrases(phrases) {
+  if (!TTS_URL) return; // Web Speech API doesn't need preloading
   for (const p of phrases) {
     if (!p?.trim() || blobCache.has(p.trim())) continue;
     fetchAudio(p).catch(() => {});
@@ -96,6 +98,7 @@ export function useTextToSpeech() {
       audioRef.current.src = '';
       audioRef.current = null;
     }
+    if (!TTS_URL) window.speechSynthesis?.cancel();
   }, []);
 
   /** Play a blob URL or a pre-built Audio element, resolves on end */
@@ -148,10 +151,23 @@ export function useTextToSpeech() {
   /**
    * STATIC PATH — single fetch + play.
    * Instant if phrase is preloaded or server-cached.
+   * Falls back to Web Speech API when VITE_TTS_URL is not configured.
    */
   const speak = useCallback(async (text, onEnd) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
+
+    if (!TTS_URL) {
+      if (!window.speechSynthesis) { onEnd?.(); return; }
+      const utt = new SpeechSynthesisUtterance(text.trim());
+      utt.lang = 'kk-KZ';
+      utt.rate = 0.9;
+      activeRef.current = true;
+      utt.onend = () => { if (activeRef.current) onEnd?.(); };
+      utt.onerror = () => { onEnd?.(); };
+      window.speechSynthesis.speak(utt);
+      return;
+    }
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -169,13 +185,23 @@ export function useTextToSpeech() {
 
   /**
    * DYNAMIC PATH — parallel fetch + pre-buffered sequential playback.
-   * As each URL resolves, immediately builds an Audio element and calls .load()
-   * so the browser decodes/buffers it DURING playback of the previous phrase.
-   * When it is time to play, the element is already ready → zero gap.
+   * Falls back to Web Speech API when VITE_TTS_URL is not configured.
    */
   const speakStream = useCallback(async (text, onEnd) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
+
+    if (!TTS_URL) {
+      if (!window.speechSynthesis) { onEnd?.(); return; }
+      const utt = new SpeechSynthesisUtterance(text.trim());
+      utt.lang = 'kk-KZ';
+      utt.rate = 0.9;
+      activeRef.current = true;
+      utt.onend = () => { if (activeRef.current) onEnd?.(); };
+      utt.onerror = () => { onEnd?.(); };
+      window.speechSynthesis.speak(utt);
+      return;
+    }
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -224,6 +250,7 @@ export function useTextToSpeech() {
   }, [stop, playOne]);
 
   const isPlaying = useCallback(() => {
+    if (!TTS_URL) return window.speechSynthesis?.speaking ?? false;
     return audioRef.current instanceof Audio && !audioRef.current.paused;
   }, []);
 
