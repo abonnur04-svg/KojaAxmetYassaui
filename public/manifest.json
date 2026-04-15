@@ -1,0 +1,10 @@
+{
+  "name": "Khoja Ahmed Yasawi",
+  "short_name": "Yasawi Guide",
+  "description": "Accessible digital guide for the Mausoleum of Khoja Ahmed Yasawi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#b8860b",
+  "icons": []
+}
