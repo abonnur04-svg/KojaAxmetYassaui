@@ -1,0 +1,8 @@
+node_modules
+dist
+.venv
+.tts-cache
+.env
+*.log
+.git
+.gitattributes
