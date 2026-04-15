@@ -30,7 +30,6 @@ dist-ssr
 
 # Piper TTS
 .venv/
-models/
 .tts-cache/
 
 .env

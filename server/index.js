@@ -14,7 +14,11 @@ const ROOT = path.resolve(__dirname, '..');
 const PORT = process.env.PORT || process.env.TTS_PORT || 3001;
 const CACHE_DIR = path.join(ROOT, '.tts-cache');
 const MODEL_PATH = path.join(ROOT, 'models', 'kk_KZ-issai-high', 'kk_KZ-issai-high.onnx');
-const PYTHON = path.join(ROOT, '.venv', 'Scripts', 'python.exe');
+
+// Windows dev: .venv/Scripts/python.exe, Linux (Render): python3
+const PYTHON = process.platform === 'win32'
+  ? path.join(ROOT, '.venv', 'Scripts', 'python.exe')
+  : (process.env.PYTHON_BIN || 'python3');
 const PIPER_WORKER = path.join(__dirname, 'piper_worker.py');
 const MAX_TEXT_LENGTH = 2000;
 const SYNTH_TIMEOUT = 30_000;
