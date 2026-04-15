@@ -195,7 +195,7 @@ export default function BlindMode() {
               <p className="text-white/40 text-sm font-body mt-1">Басу</p>
             </motion.div>
           )}
-        </motion.div>        npm run dev:all      # starts both frontend + TTS server
+        </motion.div>
 
         {/* Bottom tap legend */}
         {(
