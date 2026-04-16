@@ -3,10 +3,14 @@ services:
     name: khoja-ahmed-yasawi-backend
     runtime: node
     plan: free
-    buildCommand: npm install && pip3 install -r requirements.txt
+    buildCommand: npm install
     startCommand: node server/index.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: GEMINI_API_KEY
         sync: false
+      - key: YANDEX_API_KEY
+        sync: false
+      - key: DISABLE_PREGEN
+        value: "1"

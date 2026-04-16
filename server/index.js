@@ -4,7 +4,6 @@ import cors from 'cors';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,16 +12,11 @@ const ROOT = path.resolve(__dirname, '..');
 
 const PORT = process.env.PORT || process.env.TTS_PORT || 3001;
 const CACHE_DIR = path.join(ROOT, '.tts-cache');
-const MODEL_PATH = path.join(ROOT, 'models', 'kk_KZ-issai-high', 'kk_KZ-issai-high.onnx');
-
-// Windows dev: .venv/Scripts/python.exe, Linux (Render): python3
-const PYTHON = process.platform === 'win32'
-  ? path.join(ROOT, '.venv', 'Scripts', 'python.exe')
-  : (process.env.PYTHON_BIN || 'python3');
-const PIPER_WORKER = path.join(__dirname, 'piper_worker.py');
 const MAX_TEXT_LENGTH = 2000;
-// Free-tier Render has 0.1 CPU — ONNX synthesis is slow, allow up to 3 min
-const SYNTH_TIMEOUT = parseInt(process.env.SYNTH_TIMEOUT_MS || '180000', 10);
+
+// Yandex SpeechKit config
+const YANDEX_API_KEY = process.env.YANDEX_API_KEY || '';
+const YANDEX_TTS_URL = 'https://tts.api.ml.yandexcloud.kz/tts/v3/utteranceSynthesis';
 
 // Vision provider config (Gemini by default)
 const VISION_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
@@ -83,110 +77,33 @@ function getCachePath(text) {
   return path.join(CACHE_DIR, `${textHash(text)}.wav`);
 }
 
-// ─── Persistent Piper worker ───
-let piperProc = null;
-let piperBuffer = Buffer.alloc(0);
-let piperPending = null;       // { resolve, reject, timer }
-const piperQueue = [];
+// ─── Yandex SpeechKit TTS ───
+async function synthesize(text) {
+  if (!YANDEX_API_KEY) throw new Error('YANDEX_API_KEY not configured');
+  const clean = text.trim().replace(/[\r\n]+/g, ' ');
 
-function spawnWorker() {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(PYTHON, [PIPER_WORKER, MODEL_PATH], {
-      cwd: ROOT,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-    });
-
-    let ready = false;
-
-    proc.stderr.on('data', (d) => {
-      const msg = d.toString();
-      if (!ready && msg.includes('PIPER_READY')) {
-        ready = true;
-        piperProc = proc;
-        piperBuffer = Buffer.alloc(0);
-        proc.stdout.on('data', onWorkerData);
-        resolve();
-      }
-      const log = msg.replace(/PIPER_READY\r?\n?/g, '').trim();
-      if (log) console.error('Piper:', log);
-    });
-
-    proc.on('error', (err) => {
-      if (!ready) reject(err);
-      else console.error('Piper worker error:', err.message);
-    });
-
-    proc.on('exit', (code) => {
-      piperProc = null;
-      if (!ready) { reject(new Error(`Worker exited during startup (code ${code})`)); return; }
-      console.error(`Piper worker exited (code ${code})`);
-      if (piperPending) {
-        clearTimeout(piperPending.timer);
-        piperPending.reject(new Error('Worker exited'));
-        piperPending = null;
-      }
-      for (const item of piperQueue.splice(0)) item.reject(new Error('Worker exited'));
-      setTimeout(async () => {
-        try { await spawnWorker(); console.log('Piper worker restarted'); }
-        catch (e) { console.error('Piper restart failed:', e.message); }
-      }, 2000);
-    });
+  const res = await fetch(YANDEX_TTS_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Api-Key ${YANDEX_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: clean,
+      hints: [{ voice: 'amira' }],
+    }),
   });
-}
 
-function onWorkerData(chunk) {
-  piperBuffer = Buffer.concat([piperBuffer, chunk]);
-  drainWorker();
-}
-
-function drainWorker() {
-  while (piperBuffer.length >= 4) {
-    const len = piperBuffer.readUInt32BE(0);
-    if (len === 0) {
-      piperBuffer = piperBuffer.subarray(4);
-      if (piperPending) {
-        clearTimeout(piperPending.timer);
-        piperPending.reject(new Error('Synthesis failed'));
-        piperPending = null;
-      }
-      nextInQueue();
-      continue;
-    }
-    if (piperBuffer.length < 4 + len) return;
-    const wav = Buffer.from(piperBuffer.subarray(4, 4 + len));
-    piperBuffer = piperBuffer.subarray(4 + len);
-    if (piperPending) {
-      clearTimeout(piperPending.timer);
-      piperPending.resolve(wav);
-      piperPending = null;
-    }
-    nextInQueue();
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Yandex TTS ${res.status}: ${errText}`);
   }
-}
 
-function nextInQueue() {
-  if (piperPending || !piperProc || piperQueue.length === 0) return;
-  const next = piperQueue.shift();
-  piperPending = next;
-  next.timer = setTimeout(() => {
-    if (piperPending === next) {
-      piperPending.reject(new Error('Synthesis timeout'));
-      piperPending = null;
-      nextInQueue();
-    }
-  }, SYNTH_TIMEOUT);
-  piperProc.stdin.write(next.text + '\n', 'utf-8');
-}
+  const data = await res.json();
+  const base64Audio = data?.result?.audioChunk?.data;
+  if (!base64Audio) throw new Error('No audio in Yandex response');
 
-function synthesize(text) {
-  return new Promise((resolve, reject) => {
-    if (!piperProc) return reject(new Error('Piper worker not running'));
-    const clean = text.trim().replace(/[\r\n]+/g, ' ');
-    piperQueue.push({ text: clean, resolve, reject, timer: null });
-    nextInQueue();
-  });
+  return Buffer.from(base64Audio, 'base64');
 }
 
 async function pregenerate() {
@@ -230,25 +147,15 @@ if (fs.existsSync(distPath)) {
 }
 
 app.get('/api/health', (_req, res) => {
-  const modelExists = fs.existsSync(MODEL_PATH);
-  // On Linux PYTHON is a command name ('python3'), not a path — check via which
-  let pythonExists = fs.existsSync(PYTHON);
-  if (!pythonExists && process.platform !== 'win32') {
-    try { execSync(`which ${PYTHON}`, { stdio: 'ignore' }); pythonExists = true; } catch {}
-  }
   res.json({
-    status: modelExists && pythonExists ? 'ok' : 'degraded',
-    model: modelExists,
-    modelPath: MODEL_PATH,
-    python: pythonExists,
-    pythonBin: PYTHON,
-    piperRunning: !!piperProc,
+    status: YANDEX_API_KEY ? 'ok' : 'degraded',
+    tts: YANDEX_API_KEY ? 'yandex' : 'not configured',
     vision: !!VISION_API_KEY,
     cachedPhrases: fs.readdirSync(CACHE_DIR).length,
   });
 });
 
-// TTS endpoint — local Piper only
+// TTS endpoint — Yandex SpeechKit
 app.post('/api/tts', async (req, res) => {
   const { text } = req.body || {};
 
@@ -269,13 +176,13 @@ app.post('/api/tts', async (req, res) => {
   }
 
   try {
-    const wav = await synthesize(text);
-    fs.writeFile(cacheFile, wav, () => {});
+    const audio = await synthesize(text);
+    fs.writeFile(cacheFile, audio, () => {});
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('X-Cache', 'miss');
-    res.send(wav);
+    res.send(audio);
   } catch (err) {
-    console.error('Piper error:', err.message);
+    console.error('TTS error:', err.message);
     res.status(500).json({ error: 'TTS synthesis failed' });
   }
 });
@@ -348,24 +255,13 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(PORT, async () => {
-  console.log(`TTS server running on http://localhost:${PORT}`);
-  console.log(`Model: ${MODEL_PATH}`);
-  console.log(`Python: ${PYTHON}`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`TTS: ${YANDEX_API_KEY ? 'Yandex SpeechKit configured' : 'NOT configured (set YANDEX_API_KEY)'}`);
   console.log(`Cache: ${CACHE_DIR}`);
   console.log(`Vision: ${VISION_API_KEY ? 'configured' : 'NOT configured (set GEMINI_API_KEY in .env)'}`);
 
-  // Start persistent Piper worker (loads model once, stays alive)
-  console.log('Starting Piper worker...');
-  try {
-    await spawnWorker();
-    await synthesize('тест');
-    console.log('Piper worker ready');
-  } catch (err) {
-    console.error('Piper startup failed:', err.message);
-  }
-
-  // Pre-generate static phrases (skip on slow free-tier to avoid timeout storm)
-  if (process.env.DISABLE_PREGEN !== '1') {
+  // Pre-generate static phrases (skip if disabled)
+  if (YANDEX_API_KEY && process.env.DISABLE_PREGEN !== '1') {
     await pregenerate();
   }
 });
