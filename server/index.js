@@ -216,7 +216,7 @@ const app = express();
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS: origin ${origin} not allowed`));
+    callback(null, false);
   },
   credentials: true,
 }));
