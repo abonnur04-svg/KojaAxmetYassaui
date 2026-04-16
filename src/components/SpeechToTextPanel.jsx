@@ -38,7 +38,7 @@ export default function SpeechToTextPanel({ onBack }) {
             </motion.button>
           )}
           <button
-            onClick={isListening ? stopListening : () => startListening('ru-RU')}
+            onClick={isListening ? stopListening : () => startListening('kk-KZ')}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg ${
               isListening 
                 ? 'bg-red-500 shadow-red-500/30 animate-pulse' 

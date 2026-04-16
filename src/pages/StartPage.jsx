@@ -48,7 +48,6 @@ export default function StartPage() {
   const [showRipple, setShowRipple] = useState(false);
   const tapTimerRef = useRef(null);
   const instructionTimerRef = useRef(null);
-  const hasSpokenRef = useRef(false);
   const lastTouchTimeRef = useRef(0);
 
   useEffect(() => { preloadPhrases(PRELOAD); }, []);
@@ -57,21 +56,14 @@ export default function StartPage() {
     speak(INSTRUCTION_TEXT);
   }, [speak]);
 
-  // Play instruction on first user interaction (browsers block autoplay without gesture)
-  const hasPlayedRef = useRef(false);
+  // Auto-play instruction when page opens (once per session)
   useEffect(() => {
-    const playOnFirstInteraction = () => {
-      if (!hasPlayedRef.current) {
-        hasPlayedRef.current = true;
-        playInstruction();
-      }
-    };
-    document.addEventListener('click', playOnFirstInteraction, { once: true });
-    document.addEventListener('touchstart', playOnFirstInteraction, { once: true });
-    return () => {
-      document.removeEventListener('click', playOnFirstInteraction);
-      document.removeEventListener('touchstart', playOnFirstInteraction);
-    };
+    if (!sessionStorage.getItem('startpage_played')) {
+      sessionStorage.setItem('startpage_played', '1');
+      // Small delay for audio context to be ready
+      const t = setTimeout(() => playInstruction(), 600);
+      return () => clearTimeout(t);
+    }
   }, [playInstruction]);
 
   // Repeat instruction every 15 seconds if no selection
@@ -216,14 +208,14 @@ export default function StartPage() {
               {MODES.map((mode) => (
                 <div
                   key={mode.taps}
-                  className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl bg-gradient-to-b ${mode.color} backdrop-blur-xl border ${mode.borderColor}`}
+                  className={`flex flex-col items-center gap-2 px-3 py-6 rounded-xl bg-gradient-to-b ${mode.color} backdrop-blur-xl border ${mode.borderColor}`}
                 >
                   <div className="flex gap-1">
                     {Array.from({ length: mode.taps }).map((_, i) => (
                       <div key={i} className="w-2.5 h-2.5 rounded-full bg-white/80" />
                     ))}
                   </div>
-                  <span className="text-white/90 text-xs md:text-sm font-body text-center leading-tight">
+                  <span className="text-white/90 text-sm md:text-base font-body text-center leading-tight font-medium">
                     {mode.label}
                   </span>
                 </div>

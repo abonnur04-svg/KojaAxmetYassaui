@@ -32,7 +32,7 @@ export default function MobilityMode() {
           label="Менеджермен байланысу"
           sublabel="Telegram, WhatsApp, қоңырау"
           onClick={() => navigate('/contact')}
-          variant="primary"
+          variant="glass"
           size="xl"
         />
 

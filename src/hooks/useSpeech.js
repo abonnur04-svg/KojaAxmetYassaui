@@ -247,18 +247,20 @@ export function useSpeechToText() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'kk-KZ';
+    recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
 
     let finalBuffer = '';
     recognition.onresult = (event) => {
       let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalBuffer += event.results[i][0].transcript + ' ';
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalBuffer += result[0].transcript.trim() + ' ';
         } else {
-          interimTranscript = event.results[i][0].transcript;
+          interimTranscript = result[0].transcript;
         }
       }
       setTranscript(finalBuffer + interimTranscript);
@@ -268,8 +270,13 @@ export function useSpeechToText() {
       setIsListening(false);
     };
 
+    // Auto-restart on end to keep listening (continuous-like but without duplicates)
     recognition.onend = () => {
-      setIsListening(false);
+      if (recognitionRef.current === recognition) {
+        try { recognition.start(); } catch { setIsListening(false); }
+      } else {
+        setIsListening(false);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -278,10 +285,13 @@ export function useSpeechToText() {
   }, []);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
+    if (rec) {
+      rec.onend = null;
+      rec.stop();
     }
+    setIsListening(false);
   }, []);
 
   const clearTranscript = useCallback(() => {
