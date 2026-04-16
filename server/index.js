@@ -15,8 +15,9 @@ const CACHE_DIR = path.join(ROOT, '.tts-cache');
 const MAX_TEXT_LENGTH = 2000;
 
 // Yandex SpeechKit config
-const YANDEX_API_KEY = process.env.YANDEX_API_KEY || '';
+const YANDEX_API_KEY = (process.env.YANDEX_API_KEY || '').trim();
 const YANDEX_TTS_URL = 'https://tts.api.ml.yandexcloud.kz/tts/v3/utteranceSynthesis';
+console.log(`[startup] YANDEX_API_KEY length=${YANDEX_API_KEY.length}, prefix=${YANDEX_API_KEY.slice(0,6)}`);
 
 // Vision provider config (Gemini by default)
 const VISION_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
