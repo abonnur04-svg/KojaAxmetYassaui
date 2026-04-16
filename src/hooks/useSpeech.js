@@ -51,6 +51,8 @@ export function preloadPhrases(phrases) {
 let audioUnlocked = false;
 const unlockCallbacks = [];
 
+export function isAudioUnlocked() { return audioUnlocked; }
+
 function onUnlock() {
   if (audioUnlocked) return;
   audioUnlocked = true;
@@ -165,7 +167,7 @@ export function useTextToSpeech() {
       await playOne(url, ctrl.signal);
       if (activeRef.current) onEnd?.();
     } catch (err) {
-      if (err.name !== 'AbortError') { console.error('speak:', err); onEnd?.(); }
+      if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') { console.error('speak:', err); onEnd?.(); }
     }
   }, [stop, playOne]);
 

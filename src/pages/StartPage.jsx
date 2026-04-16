@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackgroundLayout from '../components/BackgroundLayout';
-import { useTextToSpeech, preloadPhrases } from '../hooks/useSpeech';
+import { useTextToSpeech, preloadPhrases, isAudioUnlocked } from '../hooks/useSpeech';
 import { Eye, EarOff, Accessibility } from 'lucide-react';
 
 const MODES = [
@@ -57,8 +57,8 @@ export default function StartPage() {
   }, [speak]);
 
   // Play instruction on every page open.
-  // Tries immediately (works when audio is already unlocked — PWA / subsequent visits),
-  // falls back to first user gesture if browser blocks autoplay.
+  // If audio already unlocked (returning user), play immediately.
+  // On first ever visit, wait for user gesture to avoid autoplay block.
   useEffect(() => {
     let played = false;
     const tryPlay = () => {
@@ -66,22 +66,23 @@ export default function StartPage() {
       played = true;
       playInstruction();
     };
-    // Small delay so the component finishes rendering
-    const t = setTimeout(tryPlay, 300);
-    // Fallback for very first ever interaction (browser autoplay restriction)
+    if (isAudioUnlocked()) {
+      // Returning user — audio context already unlocked, safe to auto-play
+      tryPlay();
+    }
+    // Always attach listeners: first-time fallback on gesture
     document.addEventListener('click', tryPlay, { once: true });
     document.addEventListener('touchstart', tryPlay, { once: true });
     return () => {
-      clearTimeout(t);
       document.removeEventListener('click', tryPlay);
       document.removeEventListener('touchstart', tryPlay);
     };
   }, [playInstruction]);
 
-  // Repeat instruction every 15 seconds if no selection
+  // Repeat instruction every 15 seconds if no selection and audio is unlocked
   useEffect(() => {
     instructionTimerRef.current = setInterval(() => {
-      if (!selectedMode) {
+      if (!selectedMode && isAudioUnlocked()) {
         playInstruction();
       }
     }, 15000);
