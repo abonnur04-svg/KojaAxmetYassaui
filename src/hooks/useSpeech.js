@@ -240,10 +240,9 @@ export function useSpeechToText() {
   const [transcript, setTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
-  const activeRef = useRef(false);
-  const accumulatedRef = useRef('');
+  const activeRef = useRef(false);       // true while user wants to keep listening
+  const accumulatedRef = useRef('');     // text accumulated across restarts (no duplicates)
   const langRef = useRef('kk-KZ');
-  const restartTimerRef = useRef(null);
 
   const startListening = useCallback((lang = 'kk-KZ') => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -259,41 +258,41 @@ export function useSpeechToText() {
     setTranscript('');
     setIsListening(true);
 
-    function spawnRecognition() {
+    function createAndStart() {
       if (!activeRef.current) return;
 
       const rec = new SpeechRecognition();
       rec.lang = langRef.current;
       rec.interimResults = true;
-      rec.continuous = true;  // stays on — no restart flickering
+      rec.continuous = false;   // single utterance — most reliable across browsers
       rec.maxAlternatives = 1;
       recognitionRef.current = rec;
 
       rec.onresult = (event) => {
+        let interimTranscript = '';
         let newFinal = '';
-        let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            newFinal += event.results[i][0].transcript.trim() + ' ';
+          const result = event.results[i];
+          if (result.isFinal) {
+            newFinal += result[0].transcript.trim() + ' ';
           } else {
-            interim = event.results[i][0].transcript;
+            interimTranscript = result[0].transcript;
           }
         }
         if (newFinal) accumulatedRef.current += newFinal;
-        setTranscript((accumulatedRef.current + interim).trim());
+        setTranscript((accumulatedRef.current + interimTranscript).trim());
       };
 
       rec.onerror = (e) => {
-        // no-speech / aborted are normal — onend will handle restart
-        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        if (e.error === 'no-speech' || e.error === 'aborted') return; // expected — will restart
         activeRef.current = false;
         setIsListening(false);
       };
 
       rec.onend = () => {
         if (activeRef.current) {
-          // Some browsers stop continuous recognition — restart silently
-          restartTimerRef.current = setTimeout(spawnRecognition, 80);
+          // Restart immediately for next utterance
+          setTimeout(createAndStart, 50);
         } else {
           setIsListening(false);
         }
@@ -305,16 +304,15 @@ export function useSpeechToText() {
       }
     }
 
-    spawnRecognition();
+    createAndStart();
   }, []);
 
   const stopListening = useCallback(() => {
     activeRef.current = false;
-    clearTimeout(restartTimerRef.current); // cancel any pending restart
     const rec = recognitionRef.current;
     recognitionRef.current = null;
     if (rec) {
-      rec.onend = null; // prevent restart after explicit stop
+      rec.onend = null;
       try { rec.stop(); } catch {}
     }
     setIsListening(false);
