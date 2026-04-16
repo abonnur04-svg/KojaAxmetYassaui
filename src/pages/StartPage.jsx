@@ -101,7 +101,7 @@ export default function StartPage() {
         if (mode) {
           setSelectedMode(mode);
           speak(`Сіз таңдадыңыз: ${mode.label}`);
-          setTimeout(() => navigate(mode.path), 3000);
+          setTimeout(() => navigate(mode.path), 4000);
         } else {
           speak('Өтінеміз, бір, екі немесе үш рет басыңыз.');
           return 0;
