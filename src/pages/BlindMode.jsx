@@ -31,11 +31,12 @@ export default function BlindMode() {
   const audioGuideActiveRef = useRef(false);
 
   useEffect(() => {
-    preloadPhrases([
-      INSTRUCTION,
-      t.audioGuideFinished, t.audioGuideStopped, t.goingBack, t.callingManager, t.openingCamera, t.audioGuideStarting,
-      ...AUDIO_GUIDE_SECTIONS.map(s => `${s.title}. ${s.text}`),
-    ]);
+    if (lang === 'kk') {
+      preloadPhrases([
+        INSTRUCTION,
+        t.audioGuideFinished, t.audioGuideStopped, t.goingBack, t.callingManager, t.openingCamera, t.audioGuideStarting,
+      ]);
+    }
   }, [t]);
 
   useEffect(() => {
@@ -57,8 +58,8 @@ export default function BlindMode() {
       if (audioGuideActiveRef.current) {
         setTimeout(() => playAudioGuide(index + 1), 500);
       }
-    });
-  }, [speak]);
+    }, lang, { webSpeech: true });
+  }, [speak, lang, t]);
 
   const registerTap = useCallback(() => {
     // While audio guide is active — any tap stops it

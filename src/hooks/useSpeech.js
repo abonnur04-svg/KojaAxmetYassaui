@@ -25,15 +25,16 @@ async function fetchAudio(text, signal) {
   return url;
 }
 
-/* ─── Web Speech API TTS for Russian ─── */
-function speakWebSpeech(text, lang = 'ru-RU') {
+/* ─── Web Speech API TTS (works for any language) ─── */
+function speakWebSpeech(text, langCode = 'ru-RU') {
   return new Promise((resolve) => {
     window.speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = lang;
+    utt.lang = langCode;
     const voices = window.speechSynthesis.getVoices();
-    const best = voices.find(v => v.lang === lang && !v.name.includes('Google'))
-               || voices.find(v => v.lang.startsWith('ru'));
+    const prefix = langCode.split('-')[0]; // 'ru', 'kk', etc.
+    const best = voices.find(v => v.lang === langCode && !v.name.includes('Google'))
+               || voices.find(v => v.lang.startsWith(prefix));
     if (best) utt.voice = best;
     utt.rate = 0.95;
     utt.onend = () => resolve();
@@ -66,6 +67,16 @@ export function preloadPhrases(phrases) {
     if (!p?.trim() || blobCache.has(p.trim())) continue;
     fetchAudio(p).catch(() => {});
   }
+}
+
+/** Same as preloadPhrases but returns a Promise that resolves when all fetches finish. */
+export function preloadPhrasesAsync(phrases) {
+  const promises = [];
+  for (const p of phrases) {
+    if (!p?.trim() || blobCache.has(p.trim())) continue;
+    promises.push(fetchAudio(p).catch(() => {}));
+  }
+  return Promise.all(promises);
 }
 
 /* ─── Unlock audio playback on first user gesture ─── */
@@ -173,18 +184,20 @@ export function useTextToSpeech() {
 
   /**
    * STATIC PATH — single fetch + play.
-   * Instant if phrase is preloaded or server-cached.
-   * If lang === 'ru', uses Web Speech API instead.
+   * lang='ru' → Web Speech API.
+   * lang='kk' (default) → Yandex.
+   * options.webSpeech=true → force Web Speech (e.g. audio guide).
    */
-  const speak = useCallback(async (text, onEnd, lang) => {
+  const speak = useCallback(async (text, onEnd, lang, options = {}) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
 
-    // Russian → Web Speech API (free, browser-native)
-    if (lang === 'ru') {
+    // Web Speech path: Russian always, or explicitly requested (audio guide)
+    if (lang === 'ru' || options.webSpeech) {
+      const langCode = lang === 'ru' ? 'ru-RU' : 'kk-KZ';
       activeRef.current = true;
       try {
-        await speakWebSpeech(text, 'ru-RU');
+        await speakWebSpeech(text, langCode);
         if (activeRef.current) onEnd?.();
       } catch { onEnd?.(); }
       return;
@@ -206,19 +219,20 @@ export function useTextToSpeech() {
 
   /**
    * DYNAMIC PATH — parallel fetch + pre-buffered sequential playback.
-   * If lang === 'ru', uses Web Speech API instead.
+   * lang='ru' or options.webSpeech → Web Speech API.
    */
-  const speakStream = useCallback(async (text, onEnd, lang) => {
+  const speakStream = useCallback(async (text, onEnd, lang, options = {}) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
 
-    // Russian → Web Speech API
-    if (lang === 'ru') {
+    // Web Speech path
+    if (lang === 'ru' || options.webSpeech) {
+      const langCode = lang === 'ru' ? 'ru-RU' : 'kk-KZ';
       activeRef.current = true;
       const chunks = splitChunks(text);
       for (const chunk of chunks) {
         if (!activeRef.current) return;
-        await speakWebSpeech(chunk, 'ru-RU');
+        await speakWebSpeech(chunk, langCode);
       }
       if (activeRef.current) onEnd?.();
       return;

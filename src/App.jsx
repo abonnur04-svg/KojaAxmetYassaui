@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { LangProvider } from '@/lib/LangContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { useEffect } from 'react';
-import { preloadPhrases } from './hooks/useSpeech';
+import { preloadPhrasesAsync, preloadPhrases } from './hooks/useSpeech';
 import StartPage from './pages/StartPage';
 import BlindMode from './pages/BlindMode';
 import DeafMode from './pages/DeafMode';
@@ -20,13 +20,17 @@ import GalleryDetailPage from './pages/GalleryDetailPage';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// All static phrases — preload once on app start
-const ALL_PHRASES = [
+// Priority 1 — StartPage (must play instantly)
+const START_PHRASES = [
   'Қожа Ахмет Яссауи кесенесінің инклюзивті гидіне қош келдіңіз. Бір рет басыңыз — көрмейтіндер режімі. Екі рет басыңыз — естімейтіндер режімі. Үш рет басыңыз — көмек режімі.',
   'Сіз таңдадыңыз: Көрмейтіндер режимі',
   'Сіз таңдадыңыз: Естімейтіндер режимі',
   'Сіз таңдадыңыз: Көмек режимі',
   'Өтінеміз, бір, екі немесе үш рет басыңыз.',
+];
+
+// Priority 2 — BlindMode UI (after StartPage is cached)
+const BLIND_UI_PHRASES = [
   'Көрмейтіндер режімі. Бір рет басыңыз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.',
   'Артқа оралуда',
   'Менеджерге қоңырау шалынуда',
@@ -39,10 +43,13 @@ const ALL_PHRASES = [
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
-  // Wake up Render backend + preload all static phrases into browser cache
+  // Wake up Render backend + preload phrases in priority order
   useEffect(() => {
     fetch(`${API_URL}/api/health`).catch(() => {});
-    preloadPhrases(ALL_PHRASES);
+    // StartPage first → once cached, then BlindMode UI phrases
+    preloadPhrasesAsync(START_PHRASES).then(() => {
+      preloadPhrases(BLIND_UI_PHRASES);
+    });
   }, []);
 
   // Show loading spinner while checking app public settings or auth
