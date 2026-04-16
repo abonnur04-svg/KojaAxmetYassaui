@@ -251,7 +251,7 @@ export function useSpeechToText() {
     const recognition = new SpeechRecognition();
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
     let finalBuffer = '';
@@ -265,18 +265,18 @@ export function useSpeechToText() {
           interimTranscript = result[0].transcript;
         }
       }
-      setTranscript(finalBuffer + interimTranscript);
+      setTranscript((finalBuffer + interimTranscript).trim());
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (e) => {
+      // 'no-speech' is normal (silence timeout) — keep listening
+      if (e.error === 'no-speech') return;
       setIsListening(false);
     };
 
-    // Auto-restart on end to keep listening (continuous-like but without duplicates)
     recognition.onend = () => {
+      // Only fires if recognition stops unexpectedly (not from stopListening)
       if (recognitionRef.current === recognition) {
-        try { recognition.start(); } catch { setIsListening(false); }
-      } else {
         setIsListening(false);
       }
     };
