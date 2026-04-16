@@ -16,7 +16,7 @@ const MAX_TEXT_LENGTH = 2000;
 
 // Yandex SpeechKit config
 const YANDEX_API_KEY = (process.env.YANDEX_API_KEY || '').trim();
-const YANDEX_FOLDER_ID = (process.env.YANDEX_FOLDER_ID || '').trim();
+const YANDEX_FOLDER_ID = (process.env.YANDEX_FOLDER_ID || 'ao72hqptk7qndagdq96a').trim();
 const YANDEX_TTS_URL = 'https://tts.api.ml.yandexcloud.kz/tts/v3/utteranceSynthesis';
 console.log(`[startup] YANDEX_API_KEY length=${YANDEX_API_KEY.length}, prefix=${YANDEX_API_KEY.slice(0,6)}, folder=${YANDEX_FOLDER_ID}`);
 
@@ -99,6 +99,7 @@ async function synthesize(text) {
     headers: {
       'Authorization': `Api-Key ${YANDEX_API_KEY}`,
       'Content-Type': 'application/json',
+      'x-folder-id': YANDEX_FOLDER_ID,
     },
     body: JSON.stringify(body),
   });
@@ -202,7 +203,7 @@ app.post('/api/tts', async (req, res) => {
     res.send(audio);
   } catch (err) {
     console.error('TTS error:', err.message);
-    res.status(500).json({ error: 'TTS synthesis failed' });
+    res.status(500).json({ error: err.message });
   }
 });
 
