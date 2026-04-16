@@ -65,7 +65,8 @@ try {
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   for (const f of fs.readdirSync(CACHE_DIR)) {
     const fp = path.join(CACHE_DIR, f);
-    if (fs.statSync(fp).mtimeMs < cutoff) fs.unlinkSync(fp);
+    // Remove old .wav cache files (migrated to .mp3)
+    if (f.endsWith('.wav') || fs.statSync(fp).mtimeMs < cutoff) fs.unlinkSync(fp);
   }
 } catch {}
 
@@ -74,7 +75,7 @@ function textHash(text) {
 }
 
 function getCachePath(text) {
-  return path.join(CACHE_DIR, `${textHash(text)}.wav`);
+  return path.join(CACHE_DIR, `${textHash(text)}.mp3`);
 }
 
 // ─── Yandex SpeechKit TTS ───
@@ -91,6 +92,9 @@ async function synthesize(text) {
     body: JSON.stringify({
       text: clean,
       hints: [{ voice: 'amira' }],
+      outputAudioSpec: {
+        containerAudio: { containerAudioType: 'MP3' },
+      },
     }),
   });
 
@@ -180,7 +184,7 @@ app.post('/api/tts', async (req, res) => {
 
   // Serve from cache
   if (fs.existsSync(cacheFile)) {
-    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('X-Cache', 'hit');
     return fs.createReadStream(cacheFile).pipe(res);
   }
@@ -188,7 +192,7 @@ app.post('/api/tts', async (req, res) => {
   try {
     const audio = await synthesize(text);
     fs.writeFile(cacheFile, audio, () => {});
-    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('X-Cache', 'miss');
     res.send(audio);
   } catch (err) {
