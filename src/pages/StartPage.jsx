@@ -56,14 +56,26 @@ export default function StartPage() {
     speak(INSTRUCTION_TEXT);
   }, [speak]);
 
-  // Auto-play instruction when page opens (once per session)
+  // Play instruction on every page open.
+  // Tries immediately (works when audio is already unlocked — PWA / subsequent visits),
+  // falls back to first user gesture if browser blocks autoplay.
   useEffect(() => {
-    if (!sessionStorage.getItem('startpage_played')) {
-      sessionStorage.setItem('startpage_played', '1');
-      // Small delay for audio context to be ready
-      const t = setTimeout(() => playInstruction(), 600);
-      return () => clearTimeout(t);
-    }
+    let played = false;
+    const tryPlay = () => {
+      if (played) return;
+      played = true;
+      playInstruction();
+    };
+    // Small delay so the component finishes rendering
+    const t = setTimeout(tryPlay, 300);
+    // Fallback for very first ever interaction (browser autoplay restriction)
+    document.addEventListener('click', tryPlay, { once: true });
+    document.addEventListener('touchstart', tryPlay, { once: true });
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('touchstart', tryPlay);
+    };
   }, [playInstruction]);
 
   // Repeat instruction every 15 seconds if no selection
