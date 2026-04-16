@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTextToSpeech, preloadPhrases } from '../hooks/useSpeech';
 import { Camera, Loader2, X } from 'lucide-react';
 
-const INSTRUCTION = "Камера ашылды. Бір рет тиіңіз — артқа. Екі рет — суретке түсіру.";
+const INSTRUCTION = "Камера ашылды. Бір рет басыңыз — артқа. Екі рет — суретке түсіру.";
 
 const PRELOAD = [
   INSTRUCTION,

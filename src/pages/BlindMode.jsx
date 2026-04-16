@@ -28,11 +28,11 @@ const AUDIO_GUIDE_SECTIONS = [
   },
 ];
 
-const INSTRUCTION = "Көрмейтіндер режімі. Бір рет тиіңіз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.";
+const INSTRUCTION = "Көрмейтіндер режімі. Бір рет басыңыз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.";
 
 const PRELOAD = [
   INSTRUCTION,
-  'Аудио гид аяқталды. Бір рет тиіңіз — артқа.',
+  'Аудио гид аяқталды. Бір рет басыңыз — артқа.',
   'Аудио гид тоқтатылды.',
   'Артқа оралуда',
   'Менеджерге қоңырау шалынуда',
@@ -71,7 +71,7 @@ export default function BlindMode() {
     if (index >= AUDIO_GUIDE_SECTIONS.length) {
       audioGuideActiveRef.current = false;
       setIsAudioGuideActive(false);
-      speak('Аудио гид аяқталды. Бір рет тиіңіз — артқа.');
+      speak('Аудио гид аяқталды. Бір рет басыңыз — артқа.');
       return;
     }
     const section = AUDIO_GUIDE_SECTIONS[index];
@@ -181,7 +181,7 @@ export default function BlindMode() {
             >
               <Volume2 className="w-8 h-8 text-primary mx-auto mb-2 animate-pulse" />
               <p className="text-primary font-body">Аудио гид ойнатылуда...</p>
-              <p className="text-white/40 text-sm mt-1">Тоқтату үшін бір рет тиіңіз</p>
+              <p className="text-white/40 text-sm mt-1">Тоқтату үшін бір рет басыңыз</p>
             </motion.div>
           )}
 
@@ -205,7 +205,7 @@ export default function BlindMode() {
             transition={{ delay: 0.5 }}
             className="p-5 pt-2"
           >
-            <p className="text-white/30 text-center text-sm font-body">Қажетті рет санын экранға тиіңіз</p>
+            <p className="text-white/30 text-center text-sm font-body">Қажетті рет санын экранға басыңыз</p>
           </motion.div>
         )}
       </div>
