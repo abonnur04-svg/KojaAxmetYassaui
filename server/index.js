@@ -21,7 +21,8 @@ const PYTHON = process.platform === 'win32'
   : (process.env.PYTHON_BIN || 'python3');
 const PIPER_WORKER = path.join(__dirname, 'piper_worker.py');
 const MAX_TEXT_LENGTH = 2000;
-const SYNTH_TIMEOUT = 30_000;
+// Free-tier Render has 0.1 CPU — ONNX synthesis is slow, allow up to 3 min
+const SYNTH_TIMEOUT = parseInt(process.env.SYNTH_TIMEOUT_MS || '180000', 10);
 
 // Vision provider config (Gemini by default)
 const VISION_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
@@ -363,6 +364,8 @@ app.listen(PORT, async () => {
     console.error('Piper startup failed:', err.message);
   }
 
-  // Pre-generate static phrases
-  await pregenerate();
+  // Pre-generate static phrases (skip on slow free-tier to avoid timeout storm)
+  if (process.env.DISABLE_PREGEN !== '1') {
+    await pregenerate();
+  }
 });
