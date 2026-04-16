@@ -16,8 +16,9 @@ const MAX_TEXT_LENGTH = 2000;
 
 // Yandex SpeechKit config
 const YANDEX_API_KEY = (process.env.YANDEX_API_KEY || '').trim();
+const YANDEX_FOLDER_ID = (process.env.YANDEX_FOLDER_ID || '').trim();
 const YANDEX_TTS_URL = 'https://tts.api.ml.yandexcloud.kz/tts/v3/utteranceSynthesis';
-console.log(`[startup] YANDEX_API_KEY length=${YANDEX_API_KEY.length}, prefix=${YANDEX_API_KEY.slice(0,6)}`);
+console.log(`[startup] YANDEX_API_KEY length=${YANDEX_API_KEY.length}, prefix=${YANDEX_API_KEY.slice(0,6)}, folder=${YANDEX_FOLDER_ID}`);
 
 // Vision provider config (Gemini by default)
 const VISION_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
@@ -84,19 +85,22 @@ async function synthesize(text) {
   if (!YANDEX_API_KEY) throw new Error('YANDEX_API_KEY not configured');
   const clean = text.trim().replace(/[\r\n]+/g, ' ');
 
+  const body = {
+    text: clean,
+    hints: [{ voice: 'amira' }],
+    outputAudioSpec: {
+      containerAudio: { containerAudioType: 'MP3' },
+    },
+  };
+  if (YANDEX_FOLDER_ID) body.folderId = YANDEX_FOLDER_ID;
+
   const res = await fetch(YANDEX_TTS_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Api-Key ${YANDEX_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      text: clean,
-      hints: [{ voice: 'amira' }],
-      outputAudioSpec: {
-        containerAudio: { containerAudioType: 'MP3' },
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
