@@ -30,12 +30,12 @@ const STATIC_PHRASES = [
   'Сіз таңдадыңыз: Көмек режимі',
   'Өтінеміз, бір, екі немесе үш рет басыңыз.',
   // BlindMode
-  'Көрмейтіндер режімі. Бір рет тиіңіз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.',
+  'Көрмейтіндер режімі. Бір рет басыңыз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.',
   'Артқа оралуда',
   'Менеджерге қоңырау шалынуда',
   'Камера ашылуда',
   'Аудио гид басталуда.',
-  'Аудио гид аяқталды. Бір рет тиіңіз — артқа.',
+  'Аудио гид аяқталды. Бір рет басыңыз — артқа.',
   'Аудио гид тоқтатылды.',
   // BlindMode — audio guide sections
   'Кіріспе. Қожа Ахмет Яссауи кесенесі — Түркістан қаласында орналасқан орта ғасыр сәулетінің асыл туындысы. Ол XIV ғасырдың соңында Темірдің бұйрығымен салынған және ЮНЕСКО-ның Дүниежүзілік мұра тізіміне енгізілген.',
@@ -44,7 +44,7 @@ const STATIC_PHRASES = [
   'Яссауи зираты. Қожа Ахмет Яссауи зираты жеке бөлмеде орналасқан. Қабір тасы сұр-жасыл тастан жасалған және ою-өрнектермен безендірілген. Яссауи XII ғасырдың ұлы сопылық ақыны және ойшылы болды.',
   'Ішкі безендіру. Кесене қабырғалары мозаика және тас ою-өрнектермен безендірілген. Геометриялық өрнектер мен каллиграфиялық жазулар бірегей атмосфера жасайды. Безендіру элементтерінің көпшілігі алты жүз жылдан астам уақыт бойы сақталған.',
   // CameraRecognition
-  'Камера ашылды. Бір рет тиіңіз — артқа. Екі рет — суретке түсіру.',
+  'Камера ашылды. Бір рет басыңыз — артқа. Екі рет — суретке түсіру.',
   'Сурет түсірілуде. Күте жасаңыз.',
   'Суретті талдау мүмкін болмады. Қайталап көріңіз.',
   // TextToSpeechPanel — quick phrases
@@ -107,17 +107,27 @@ async function synthesize(text) {
 }
 
 async function pregenerate() {
+  const BATCH = 5; // parallel requests to Yandex
   let generated = 0;
   let cached = 0;
+  const todo = [];
   for (const phrase of STATIC_PHRASES) {
     const fp = getCachePath(phrase);
     if (fs.existsSync(fp)) { cached++; continue; }
-    try {
-      const wav = await synthesize(phrase);
-      fs.writeFileSync(fp, wav);
-      generated++;
-    } catch (err) {
-      console.error(`Pre-gen failed for "${phrase}":`, err.message);
+    todo.push(phrase);
+  }
+  for (let i = 0; i < todo.length; i += BATCH) {
+    const batch = todo.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async (phrase) => {
+        const wav = await synthesize(phrase);
+        fs.writeFileSync(getCachePath(phrase), wav);
+        return phrase;
+      })
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') generated++;
+      else console.error(`Pre-gen failed:`, r.reason?.message);
     }
   }
   console.log(`Pre-generation: ${generated} new, ${cached} cached, ${STATIC_PHRASES.length} total`);
@@ -260,8 +270,8 @@ app.listen(PORT, async () => {
   console.log(`Cache: ${CACHE_DIR}`);
   console.log(`Vision: ${VISION_API_KEY ? 'configured' : 'NOT configured (set GEMINI_API_KEY in .env)'}`);
 
-  // Pre-generate static phrases (skip if disabled)
-  if (YANDEX_API_KEY && process.env.DISABLE_PREGEN !== '1') {
-    await pregenerate();
+  // Pre-generate static phrases into disk cache
+  if (YANDEX_API_KEY) {
+    pregenerate().catch(err => console.error('Pre-gen error:', err.message));
   }
 });

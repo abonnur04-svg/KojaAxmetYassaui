@@ -12,5 +12,4 @@ services:
         sync: false
       - key: YANDEX_API_KEY
         sync: false
-      - key: DISABLE_PREGEN
-        value: "1"
+
