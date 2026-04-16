@@ -205,8 +205,21 @@ async function pregenerate() {
   console.log(`Pre-generation: ${generated} new, ${cached} cached, ${STATIC_PHRASES.length} total`);
 }
 
+const ALLOWED_ORIGINS = [
+  'https://koja-axmet-yassaui.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...(process.env.ALLOWED_ORIGIN ? [process.env.ALLOWED_ORIGIN] : []),
+];
+
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '5mb' }));
 
 // Serve built frontend in production
