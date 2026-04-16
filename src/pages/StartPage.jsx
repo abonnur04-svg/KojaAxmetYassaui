@@ -49,6 +49,8 @@ export default function StartPage() {
   const tapTimerRef = useRef(null);
   const instructionTimerRef = useRef(null);
   const lastTouchTimeRef = useRef(0);
+  // If audio not yet unlocked at mount, first click is reserved for unlock only (not a tap)
+  const needsUnlockClickRef = useRef(!isAudioUnlocked());
 
   useEffect(() => { preloadPhrases(PRELOAD); }, []);
 
@@ -58,25 +60,11 @@ export default function StartPage() {
 
   // Play instruction on every page open.
   // If audio already unlocked (returning user), play immediately.
-  // On first ever visit, wait for user gesture to avoid autoplay block.
+  // On first ever visit, first click is handled in handleTap — no listener needed.
   useEffect(() => {
-    let played = false;
-    const tryPlay = () => {
-      if (played) return;
-      played = true;
-      playInstruction();
-    };
     if (isAudioUnlocked()) {
-      // Returning user — audio context already unlocked, safe to auto-play
-      tryPlay();
+      playInstruction();
     }
-    // Always attach listeners: first-time fallback on gesture
-    document.addEventListener('click', tryPlay, { once: true });
-    document.addEventListener('touchstart', tryPlay, { once: true });
-    return () => {
-      document.removeEventListener('click', tryPlay);
-      document.removeEventListener('touchstart', tryPlay);
-    };
   }, [playInstruction]);
 
   // Repeat instruction every 15 seconds if no selection and audio is unlocked
@@ -91,6 +79,13 @@ export default function StartPage() {
 
   const handleTap = useCallback(() => {
     if (selectedMode) return;
+
+    // First-ever click: unlock audio and play instruction, do NOT count as a tap
+    if (needsUnlockClickRef.current) {
+      needsUnlockClickRef.current = false;
+      playInstruction();
+      return;
+    }
 
     setTapCount(prev => {
       const newCount = prev + 1;
@@ -114,7 +109,7 @@ export default function StartPage() {
         return current;
       });
     }, 1200);
-  }, [selectedMode, navigate, speak]);
+  }, [selectedMode, navigate, speak, playInstruction]);
 
   const handleTouchStart = useCallback(() => {
     lastTouchTimeRef.current = Date.now();
