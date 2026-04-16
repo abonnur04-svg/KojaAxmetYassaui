@@ -4,6 +4,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { LangProvider } from '@/lib/LangContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { useEffect } from 'react';
 import { preloadPhrases } from './hooks/useSpeech';
@@ -86,12 +87,14 @@ function App() {
 
   return (
     <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
+      <LangProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </LangProvider>
     </AuthProvider>
   )
 }

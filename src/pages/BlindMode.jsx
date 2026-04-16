@@ -4,53 +4,25 @@ import { motion } from 'framer-motion';
 import BackgroundLayout from '../components/BackgroundLayout';
 import { useTextToSpeech, preloadPhrases } from '../hooks/useSpeech';
 import { Volume2, Phone, Camera, ArrowLeft } from 'lucide-react';
-
-const AUDIO_GUIDE_SECTIONS = [
-  {
-    title: "Кіріспе",
-    text: "Қожа Ахмет Яссауи кесенесі — Түркістан қаласында орналасқан орта ғасыр сәулетінің асыл туындысы. Ол XIV ғасырдың соңында Темірдің бұйрығымен салынған және ЮНЕСКО-ның Дүниежүзілік мұра тізіміне енгізілген."
-  },
-  {
-    title: "Бас күмбез",
-    text: "Кесененің бас күмбезі Орталық Азиядағы ең ірілерінің бірі. Оның диаметрі шамамен он сегіз метр. Күмбез темір дәуірінің сәулетіне тән көгілдір глазурланған кірпішпен қапталған."
-  },
-  {
-    title: "Қазандық",
-    text: "Орталық залда ритуалдық су үшін алып қола қазан орналасқан. Оның диаметрі екі метрден асады, ал салмағы шамамен екі тонна. Қазан араб жазулары мен өсімдік өрнектерімен безендірілген."
-  },
-  {
-    title: "Яссауи зираты",
-    text: "Қожа Ахмет Яссауи зираты жеке бөлмеде орналасқан. Қабір тасы сұр-жасыл тастан жасалған және ою-өрнектермен безендірілген. Яссауи XII ғасырдың ұлы сопылық ақыны және ойшылы болды."
-  },
-  {
-    title: "Ішкі безендіру",
-    text: "Кесене қабырғалары мозаика және тас ою-өрнектермен безендірілген. Геометриялық өрнектер мен каллиграфиялық жазулар бірегей атмосфера жасайды. Безендіру элементтерінің көпшілігі алты жүз жылдан астам уақыт бойы сақталған."
-  },
-];
-
-const INSTRUCTION = "Көрмейтіндер режімі. Бір рет басыңыз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.";
-
-const PRELOAD = [
-  INSTRUCTION,
-  'Аудио гид аяқталды. Бір рет басыңыз — артқа.',
-  'Аудио гид тоқтатылды.',
-  'Артқа оралуда',
-  'Менеджерге қоңырау шалынуда',
-  'Камера ашылуда',
-  'Аудио гид басталуда.',
-  ...AUDIO_GUIDE_SECTIONS.map(s => `${s.title}. ${s.text}`),
-];
-
-const COMMANDS = [
-  { taps: 1, label: 'Артқа', icon: <ArrowLeft className="w-6 h-6" />, color: 'text-white/70' },
-  { taps: 2, label: 'Менеджермен байланыс', icon: <Phone className="w-6 h-6" />, color: 'text-primary' },
-  { taps: 3, label: 'Камераны ашу', icon: <Camera className="w-6 h-6" />, color: 'text-cyan-400' },
-  { taps: 4, label: 'Аудио гид', icon: <Volume2 className="w-6 h-6" />, color: 'text-emerald-400' },
-];
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function BlindMode() {
   const navigate = useNavigate();
   const { speak, stop } = useTextToSpeech();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
+
+  const AUDIO_GUIDE_SECTIONS = t.audioGuideSections;
+  const INSTRUCTION = t.blindInstruction;
+
+  const COMMANDS = [
+    { taps: 1, label: t.back, icon: <ArrowLeft className="w-6 h-6" />, color: 'text-white/70' },
+    { taps: 2, label: t.contactManager, icon: <Phone className="w-6 h-6" />, color: 'text-primary' },
+    { taps: 3, label: t.openCamera, icon: <Camera className="w-6 h-6" />, color: 'text-cyan-400' },
+    { taps: 4, label: t.audioGuide, icon: <Volume2 className="w-6 h-6" />, color: 'text-emerald-400' },
+  ];
+
   const [isAudioGuideActive, setIsAudioGuideActive] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const tapTimerRef = useRef(null);
@@ -58,20 +30,26 @@ export default function BlindMode() {
   const lastTouchTimeRef = useRef(0);
   const audioGuideActiveRef = useRef(false);
 
-  useEffect(() => { preloadPhrases(PRELOAD); }, []);
+  useEffect(() => {
+    preloadPhrases([
+      INSTRUCTION,
+      t.audioGuideFinished, t.audioGuideStopped, t.goingBack, t.callingManager, t.openingCamera, t.audioGuideStarting,
+      ...AUDIO_GUIDE_SECTIONS.map(s => `${s.title}. ${s.text}`),
+    ]);
+  }, [t]);
 
   useEffect(() => {
     if (!hasSpokenRef.current) {
       hasSpokenRef.current = true;
-      setTimeout(() => speak(INSTRUCTION), 500);
+      setTimeout(() => speak(INSTRUCTION, null, lang), 500);
     }
-  }, [speak]);
+  }, [speak, INSTRUCTION, lang]);
 
   const playAudioGuide = useCallback((index = 0) => {
     if (index >= AUDIO_GUIDE_SECTIONS.length) {
       audioGuideActiveRef.current = false;
       setIsAudioGuideActive(false);
-      speak('Аудио гид аяқталды. Бір рет басыңыз — артқа.');
+      speak(t.audioGuideFinished, null, lang);
       return;
     }
     const section = AUDIO_GUIDE_SECTIONS[index];
@@ -88,7 +66,7 @@ export default function BlindMode() {
       stop();
       audioGuideActiveRef.current = false;
       setIsAudioGuideActive(false);
-      speak('Аудио гид тоқтатылды.');
+      speak(t.audioGuideStopped, null, lang);
       return;
     }
     setTapCount(prev => prev + 1);
@@ -96,17 +74,17 @@ export default function BlindMode() {
     tapTimerRef.current = setTimeout(() => {
       setTapCount(current => {
         if (current === 1) {
-          stop(); speak('Артқа оралуда'); setTimeout(() => navigate('/'), 1500);
+          stop(); speak(t.goingBack, null, lang); setTimeout(() => navigate('/'), 1500);
         } else if (current === 2) {
-          stop(); speak('Менеджерге қоңырау шалынуда');
+          stop(); speak(t.callingManager, null, lang);
           setTimeout(() => { window.location.href = 'tel:+77754514282'; }, 1000);
         } else if (current === 3) {
-          stop(); speak('Камера ашылуда'); setTimeout(() => navigate('/camera'), 1500);
+          stop(); speak(t.openingCamera, null, lang); setTimeout(() => navigate('/camera'), 1500);
         } else if (current === 4) {
           stop();
           audioGuideActiveRef.current = true;
           setIsAudioGuideActive(true);
-          speak('Аудио гид басталуда.', () => playAudioGuide(0));
+          speak(t.audioGuideStarting, () => playAudioGuide(0), lang);
         }
         return 0;
       });
@@ -143,8 +121,8 @@ export default function BlindMode() {
               <Volume2 className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
-              <h1 className="font-heading font-bold text-2xl text-white">Көрмейтіндер режимі</h1>
-              <p className="text-white/50 text-sm font-body">Түрту арқылы басқару</p>
+              <h1 className="font-heading font-bold text-2xl text-white">{t.blindModeTitle}</h1>
+              <p className="text-white/50 text-sm font-body">{t.blindModeSubtitle}</p>
             </div>
           </div>
         </motion.div>
@@ -180,8 +158,8 @@ export default function BlindMode() {
               className="text-center mt-4 p-4 rounded-2xl bg-primary/10 border border-primary/30"
             >
               <Volume2 className="w-8 h-8 text-primary mx-auto mb-2 animate-pulse" />
-              <p className="text-primary font-body">Аудио гид ойнатылуда...</p>
-              <p className="text-white/40 text-sm mt-1">Тоқтату үшін бір рет басыңыз</p>
+              <p className="text-primary font-body">{t.audioGuidePlaying}</p>
+              <p className="text-white/40 text-sm mt-1">{t.tapToStop}</p>
             </motion.div>
           )}
 
@@ -192,7 +170,7 @@ export default function BlindMode() {
               className="text-center mt-2"
             >
               <span className="text-primary text-5xl font-heading font-bold">{tapCount}</span>
-              <p className="text-white/40 text-sm font-body mt-1">Басу</p>
+              <p className="text-white/40 text-sm font-body mt-1">{t.tapCount}</p>
             </motion.div>
           )}
         </motion.div>
@@ -205,7 +183,7 @@ export default function BlindMode() {
             transition={{ delay: 0.5 }}
             className="p-5 pt-2"
           >
-            <p className="text-white/30 text-center text-sm font-body">Қажетті рет санын экранға басыңыз</p>
+            <p className="text-white/30 text-center text-sm font-body">{t.tapHint}</p>
           </motion.div>
         )}
       </div>

@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import BackgroundLayout from '../components/BackgroundLayout';
 import PageHeader from '../components/PageHeader';
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export const GALLERY_ITEMS = [
   // ── Сыртқы көрініс ───────────────────────────────────────────────────────
@@ -172,10 +174,12 @@ export const GALLERY_ITEMS = [
 
 export default function GalleryPage() {
   const navigate = useNavigate();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
 
   return (
     <BackgroundLayout overlayOpacity="bg-black/75">
-      <PageHeader title="Галерея" subtitle="Кесенеге байланысты фотосуреттер" />
+      <PageHeader title={t.galleryTitle} subtitle={t.gallerySubtitle} />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

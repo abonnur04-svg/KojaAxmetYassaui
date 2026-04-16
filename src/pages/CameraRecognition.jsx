@@ -3,18 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTextToSpeech, preloadPhrases } from '../hooks/useSpeech';
 import { Camera, Loader2, X } from 'lucide-react';
-
-const INSTRUCTION = "Камера ашылды. Бір рет басыңыз — артқа. Екі рет — суретке түсіру.";
-
-const PRELOAD = [
-  INSTRUCTION,
-  'Сурет түсірілуде. Күте жасаңыз.',
-  'Суретті талдау мүмкін болмады. Қайталап көріңіз.',
-];
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function CameraRecognition() {
   const navigate = useNavigate();
   const { speak, speakStream, stop } = useTextToSpeech();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -62,13 +58,13 @@ export default function CameraRecognition() {
     };
   }, []);
 
-  useEffect(() => { preloadPhrases(PRELOAD); }, []);
+  useEffect(() => { if (lang === 'kk') preloadPhrases([t.cameraInstruction, t.capturing, t.analysisFailed]); }, []);
 
   // Speak instruction
   useEffect(() => {
     if (!hasSpokenRef.current) {
       hasSpokenRef.current = true;
-      setTimeout(() => speak(INSTRUCTION), 1000);
+      setTimeout(() => speak(t.cameraInstruction, undefined, lang), 1000);
     }
   }, [speak]);
 
@@ -82,7 +78,7 @@ export default function CameraRecognition() {
     canvas.getContext('2d').drawImage(video, 0, 0);
 
     setIsAnalyzing(true);
-    speak("Сурет түсірілуде. Күте жасаңыз.");
+    speak(t.capturing, undefined, lang);
 
     try {
       const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
@@ -102,11 +98,11 @@ export default function CameraRecognition() {
       const response = await res.json();
       setResult(response);
       setIsAnalyzing(false);
-      speakStream(`${response.object_name}. ${response.description}`);
+      speakStream(`${response.object_name}. ${response.description}`, undefined, lang);
     } catch (err) {
       console.error('Vision analysis error:', err);
       setIsAnalyzing(false);
-      speak('Суретті талдау мүмкін болмады. Қайталап көріңіз.');
+      speak(t.analysisFailed, undefined, lang);
     }
   }, [speak]);
 
@@ -152,13 +148,13 @@ export default function CameraRecognition() {
       {cameraError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-20 p-8">
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-8 text-center max-w-sm">
-            <p className="text-white text-xl font-body mb-2">Камера қол жетімсіз</p>
+            <p className="text-white text-xl font-body mb-2">{t.cameraUnavailable}</p>
             <p className="text-white/50 text-sm font-body mb-6">{cameraError}</p>
             <button
               onClick={() => navigate(-1)}
               className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-heading font-semibold"
             >
-              Артқа
+              {t.backLabel}
             </button>
           </div>
         </div>
@@ -170,17 +166,17 @@ export default function CameraRecognition() {
         <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent">
           <div className="flex items-center gap-2">
             <Camera className="w-5 h-5 text-primary" />
-            <span className="text-white font-heading font-semibold text-sm">Тану</span>
+            <span className="text-white font-heading font-semibold text-sm">{t.recognize}</span>
           </div>
           <div className="flex gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur">
               <div className="w-2 h-2 rounded-full bg-white/50" />
-              <span className="text-white/60 text-xs">Артқа</span>
+              <span className="text-white/60 text-xs">{t.backLabel}</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur">
               <div className="w-2 h-2 rounded-full bg-white/50" />
               <div className="w-2 h-2 rounded-full bg-white/50" />
-              <span className="text-white/60 text-xs">Суретке</span>
+              <span className="text-white/60 text-xs">{t.takePhoto}</span>
             </div>
           </div>
         </div>
@@ -208,7 +204,7 @@ export default function CameraRecognition() {
             >
               <div className="bg-black/70 backdrop-blur-xl rounded-2xl p-8 flex flex-col items-center gap-4">
                 <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                <p className="text-white text-lg font-body">Талдануда...</p>
+                <p className="text-white text-lg font-body">{t.analyzing || 'Талдануда...'}</p>
               </div>
             </motion.div>
           )}
@@ -243,7 +239,7 @@ export default function CameraRecognition() {
         {!result && !isAnalyzing && (
           <div className="p-4 bg-gradient-to-t from-black/60 to-transparent">
             <p className="text-white/50 text-center text-sm font-body">
-              Кесене объектіне камераны бағыттаңыз
+              {t.aimAtObject || 'Кесене объектіне камераны бағыттаңыз'}
             </p>
           </div>
         )}

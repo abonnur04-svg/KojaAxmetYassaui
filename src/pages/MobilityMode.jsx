@@ -4,22 +4,19 @@ import BackgroundLayout from '../components/BackgroundLayout';
 import PageHeader from '../components/PageHeader';
 import AccessibleButton from '../components/AccessibleButton';
 import { Phone, HandHelping, UserCheck, LogOut, Info, Map, Images } from 'lucide-react';
-
-const TIPS = [
-  "Пандус бас кіреберіштің сол жағында орналасқан.",
-  "Қозғалысы шектеулі келушілерге арналған дәретхана бірінші қабатта.",
-  "Қажет болса менеджерден серіктес тағайындауды сұраңыз.",
-  "Барлық негізгі залдар бірінші қабатта қол жетімді.",
-];
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function MobilityMode() {
   const navigate = useNavigate();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
 
   return (
     <BackgroundLayout overlayOpacity="bg-black/70">
       <PageHeader 
-        title="Көмек және сүйемелдеу" 
-        subtitle="Қозғалысы шектеулі адамдарға арналған режим"
+        title={t.mobilityTitle} 
+        subtitle={t.mobilitySubtitle}
       />
       
       <motion.div
@@ -29,8 +26,8 @@ export default function MobilityMode() {
       >
         <AccessibleButton
           icon={<Phone className="w-7 h-7 text-primary" />}
-          label="Менеджермен байланысу"
-          sublabel="Telegram, WhatsApp, қоңырау"
+          label={t.contactManagerBtn}
+          sublabel={t.contactManagerSub}
           onClick={() => navigate('/contact')}
           variant="glass"
           size="xl"
@@ -38,8 +35,8 @@ export default function MobilityMode() {
 
         <AccessibleButton
           icon={<HandHelping className="w-7 h-7 text-amber-400" />}
-          label="Жүруге көмек қажет"
-          sublabel="Қызметкер көмегін сұрау"
+          label={t.needWalkHelp}
+          sublabel={t.needWalkHelpSub}
           onClick={() => navigate('/contact')}
           variant="glass"
           size="xl"
@@ -47,8 +44,8 @@ export default function MobilityMode() {
 
         <AccessibleButton
           icon={<UserCheck className="w-7 h-7 text-emerald-400" />}
-          label="Серіктес қажет"
-          sublabel="Гид немесе волонтер сұрау"
+          label={t.needCompanion}
+          sublabel={t.needCompanionSub}
           onClick={() => navigate('/contact')}
           variant="glass"
           size="xl"
@@ -56,8 +53,8 @@ export default function MobilityMode() {
 
         <AccessibleButton
           icon={<LogOut className="w-7 h-7 text-orange-400" />}
-          label="Шығуда көмек қажет"
-          sublabel="Шығысқа қызметкер шақыру"
+          label={t.needExitHelp}
+          sublabel={t.needExitHelpSub}
           onClick={() => navigate('/contact')}
           variant="glass"
           size="xl"
@@ -65,8 +62,8 @@ export default function MobilityMode() {
 
         <AccessibleButton
           icon={<Images className="w-7 h-7 text-violet-400" />}
-          label="Галерея"
-          sublabel="Кесенеге байланысты фотосуреттер"
+          label={t.gallery}
+          sublabel={t.gallerySub}
           onClick={() => navigate('/gallery')}
           variant="glass"
           size="xl"
@@ -74,8 +71,8 @@ export default function MobilityMode() {
 
         <AccessibleButton
           icon={<Map className="w-7 h-7 text-cyan-400" />}
-          label="Интерактивті карта"
-          sublabel="Нысандар мен навигация"
+          label={t.interactiveMap}
+          sublabel={t.interactiveMapSub}
           onClick={() => navigate('/map')}
           variant="glass"
           size="xl"
@@ -90,10 +87,10 @@ export default function MobilityMode() {
         >
           <div className="flex items-center gap-2 mb-3">
             <Info className="w-5 h-5 text-primary" />
-            <span className="font-heading font-semibold text-white">Пайдалы ақпарат</span>
+            <span className="font-heading font-semibold text-white">{t.usefulInfo}</span>
           </div>
           <ul className="space-y-2">
-            {TIPS.map((tip, idx) => (
+            {t.tips.map((tip, idx) => (
               <li key={idx} className="flex gap-3 text-white/70 font-body text-base">
                 <span className="text-primary shrink-0 mt-0.5">•</span>
                 {tip}

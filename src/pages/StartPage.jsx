@@ -4,45 +4,43 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BackgroundLayout from '../components/BackgroundLayout';
 import { useTextToSpeech, preloadPhrases, isAudioUnlocked } from '../hooks/useSpeech';
 import { Eye, EarOff, Accessibility } from 'lucide-react';
-
-const MODES = [
-  { 
-    taps: 1, 
-    path: '/blind', 
-    label: 'Көрмейтіндер режимі', 
-    icon: <Eye className="w-8 h-8" />,
-    color: 'from-cyan-500/30 to-blue-600/30',
-    borderColor: 'border-cyan-400/40'
-  },
-  { 
-    taps: 2, 
-    path: '/deaf', 
-    label: 'Естімейтіндер режимі',
-    icon: <EarOff className="w-8 h-8" />,
-    color: 'from-amber-500/30 to-orange-600/30',
-    borderColor: 'border-amber-400/40'
-  },
-  { 
-    taps: 3, 
-    path: '/mobility', 
-    label: 'Көмек режимі',
-    icon: <Accessibility className="w-8 h-8" />,
-    color: 'from-emerald-500/30 to-green-600/30',
-    borderColor: 'border-emerald-400/40'
-  },
-];
-
-const INSTRUCTION_TEXT = 'Қожа Ахмет Яссауи кесенесінің инклюзивті гидіне қош келдіңіз. Бір рет басыңыз — көрмейтіндер режімі. Екі рет басыңыз — естімейтіндер режімі. Үш рет басыңыз — көмек режімі.';
-
-const PRELOAD = [
-  INSTRUCTION_TEXT,
-  'Өтінеміз, бір, екі немесе үш рет басыңыз.',
-  ...MODES.map(m => `Сіз таңдадыңыз: ${m.label}`),
-];
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function StartPage() {
   const navigate = useNavigate();
   const { speak } = useTextToSpeech();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
+
+  const MODES = [
+    { 
+      taps: 1, 
+      path: '/blind', 
+      label: t.blindMode, 
+      icon: <Eye className="w-8 h-8" />,
+      color: 'from-cyan-500/30 to-blue-600/30',
+      borderColor: 'border-cyan-400/40'
+    },
+    { 
+      taps: 2, 
+      path: '/deaf', 
+      label: t.deafMode,
+      icon: <EarOff className="w-8 h-8" />,
+      color: 'from-amber-500/30 to-orange-600/30',
+      borderColor: 'border-amber-400/40'
+    },
+    { 
+      taps: 3, 
+      path: '/mobility', 
+      label: t.mobilityMode,
+      icon: <Accessibility className="w-8 h-8" />,
+      color: 'from-emerald-500/30 to-green-600/30',
+      borderColor: 'border-emerald-400/40'
+    },
+  ];
+
+  const INSTRUCTION_TEXT = t.instructionText;
   const [tapCount, setTapCount] = useState(0);
   const [selectedMode, setSelectedMode] = useState(null);
   const [showRipple, setShowRipple] = useState(false);
@@ -52,11 +50,11 @@ export default function StartPage() {
   // If audio not yet unlocked at mount, first click is reserved for unlock only (not a tap)
   const needsUnlockClickRef = useRef(!isAudioUnlocked());
 
-  useEffect(() => { preloadPhrases(PRELOAD); }, []);
+  useEffect(() => { preloadPhrases([t.instructionText, t.invalidTap, ...MODES.map(m => `${t.selectedMode}: ${m.label}`)]); }, [t]);
 
   const playInstruction = useCallback(() => {
-    speak(INSTRUCTION_TEXT);
-  }, [speak]);
+    speak(INSTRUCTION_TEXT, null, lang);
+  }, [speak, INSTRUCTION_TEXT, lang]);
 
   // Play instruction on every page open.
   // If audio already unlocked (returning user), play immediately.
@@ -100,10 +98,10 @@ export default function StartPage() {
         const mode = MODES.find(m => m.taps === current);
         if (mode) {
           setSelectedMode(mode);
-          speak(`Сіз таңдадыңыз: ${mode.label}`);
+          speak(`${t.selectedMode}: ${mode.label}`, null, lang);
           setTimeout(() => navigate(mode.path), 4000);
         } else {
-          speak('Өтінеміз, бір, екі немесе үш рет басыңыз.');
+          speak(t.invalidTap, null, lang);
           return 0;
         }
         return current;
@@ -139,15 +137,15 @@ export default function StartPage() {
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
             <span className="text-primary font-heading font-medium text-sm tracking-widest uppercase">
-              Инклюзивті гид
+              {t.inclusiveGuide}
             </span>
           </div>
           <h1 className="font-heading font-bold text-4xl md:text-6xl text-white leading-tight">
-            Қожа Ахмет
+            {t.mausoleumTitle1}
             <br />
-            <span className="text-primary">Яссауи</span>
+            <span className="text-primary">{t.mausoleumTitle2}</span>
             <br />
-            кесенесі
+            {t.mausoleumTitle3}
           </h1>
         </motion.div>
 
@@ -179,7 +177,7 @@ export default function StartPage() {
                 )}
               </div>
               <p className="text-white/80 text-center text-lg md:text-xl font-body mt-6 max-w-sm leading-relaxed">
-                Режимді таңдау үшін экранға басыңыз
+                {t.tapToSelect}
               </p>
             </motion.div>
           )}
@@ -199,7 +197,7 @@ export default function StartPage() {
                   {selectedMode.label}
                 </span>
               </div>
-              <p className="text-white/50 mt-4 font-body">Өтуде...</p>
+              <p className="text-white/50 mt-4 font-body">{lang === 'kk' ? 'Өтуде...' : 'Переход...'}</p>
             </motion.div>
           )}
         </AnimatePresence>

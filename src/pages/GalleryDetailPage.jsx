@@ -3,17 +3,21 @@ import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import BackgroundLayout from '../components/BackgroundLayout';
 import { GALLERY_ITEMS } from './GalleryPage';
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function GalleryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
   const item = GALLERY_ITEMS.find((i) => i.id === Number(id));
 
   if (!item) {
     return (
       <BackgroundLayout>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-white/60">Сурет табылмады</p>
+          <p className="text-white/60">{t.imageNotFound}</p>
         </div>
       </BackgroundLayout>
     );

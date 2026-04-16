@@ -1,38 +1,17 @@
 import { motion } from 'framer-motion';
 import BackgroundLayout from './BackgroundLayout';
 import PageHeader from './PageHeader';
-
-const GUIDE_SECTIONS = [
-  {
-    title: "Кесене туралы",
-    text: "Қожа Ахмет Яссауи кесенесі — Қазақстандың Түркістан қаласында орналасқан орта ғасыр сәулетінің асыл туындысы. XIV ғасырдың соңында Темірдің бұйрығымен салынған. 2003 жылдан ЮНЕСКО-ның Дүниежүзілік мұрасы."
-  },
-  {
-    title: "Бас күмбез",
-    text: "Орталық Азиядағы ең ірі кірпіш күмбез. Диаметрі — шамамен 18 метр. Темір дәуірінің сәулетіне тән көгілдір глазурланған кірпішпен қапталған."
-  },
-  {
-    title: "Қазандық — орталық зал",
-    text: "Зал ортасында ритуалдық су үшін қола үлкен қазан тұр.Диаметрі 2 метрден асады, салмағы — 2 тонна. Араб жазулары мен өсімдік өрнектермен безендірілген."
-  },
-  {
-    title: "Яссауи зираты",
-    text: "Қабір тасы сұр-жасыл тастан жасалған және ою өрнектермен безендірілген. Қожа Ахмет Яссауи XII ғасырдың ұлы сопылық ақыны және ойшылы болған."
-  },
-  {
-    title: "Ішкі безендіру",
-    text: "Қабырғалар мозаика, тас ою-өрнектер мен каллиграфиялық жазулармен безендірілген. Геометриялық өрнектер алты жүз жылдан астам уақыт сақталған."
-  },
-  {
-    title: "Кітапхана және мешіт",
-    text: "Кесенеде кітапхана мен мешіт орналасқан — онда намаз оқылып, білім берілген. Бұл бөлмелер сол замандағы мәдениет пен ғылымның жоғары дәрежесін көрсетеді."
-  },
-];
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function TextGuidePanel({ onBack }) {
+  const { lang } = useLang();
+  const t = TEXTS[lang];
+  const GUIDE_SECTIONS = t.guideSections;
+
   return (
     <BackgroundLayout overlayOpacity="bg-black/80">
-      <PageHeader title="Мәтіндік гид" subtitle="Кесене туралы ақпарат" onBack={onBack} />
+      <PageHeader title={t.textGuideTitle} subtitle={t.textGuideSubtitle} onBack={onBack} />
 
       <div className="flex-1 overflow-auto px-5 pb-5">
         <div className="flex flex-col gap-4 max-w-lg mx-auto">

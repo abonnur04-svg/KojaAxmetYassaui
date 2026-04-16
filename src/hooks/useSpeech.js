@@ -25,6 +25,27 @@ async function fetchAudio(text, signal) {
   return url;
 }
 
+/* ─── Web Speech API TTS for Russian ─── */
+function speakWebSpeech(text, lang = 'ru-RU') {
+  return new Promise((resolve) => {
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = lang;
+    const voices = window.speechSynthesis.getVoices();
+    const best = voices.find(v => v.lang === lang && !v.name.includes('Google'))
+               || voices.find(v => v.lang.startsWith('ru'));
+    if (best) utt.voice = best;
+    utt.rate = 0.95;
+    utt.onend = () => resolve();
+    utt.onerror = () => resolve();
+    window.speechSynthesis.speak(utt);
+  });
+}
+
+function stopWebSpeech() {
+  window.speechSynthesis.cancel();
+}
+
 /** Split text into sentence-like chunks for streaming playback */
 function splitChunks(text) {
   const parts = text.match(/[^.!?]+[.!?]+[\s)»"]*/g);
@@ -100,6 +121,7 @@ export function useTextToSpeech() {
       audioRef.current.src = '';
       audioRef.current = null;
     }
+    stopWebSpeech();
   }, []);
 
   /** Play a blob URL or a pre-built Audio element, resolves on end */
@@ -152,10 +174,21 @@ export function useTextToSpeech() {
   /**
    * STATIC PATH — single fetch + play.
    * Instant if phrase is preloaded or server-cached.
+   * If lang === 'ru', uses Web Speech API instead.
    */
-  const speak = useCallback(async (text, onEnd) => {
+  const speak = useCallback(async (text, onEnd, lang) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
+
+    // Russian → Web Speech API (free, browser-native)
+    if (lang === 'ru') {
+      activeRef.current = true;
+      try {
+        await speakWebSpeech(text, 'ru-RU');
+        if (activeRef.current) onEnd?.();
+      } catch { onEnd?.(); }
+      return;
+    }
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -173,13 +206,23 @@ export function useTextToSpeech() {
 
   /**
    * DYNAMIC PATH — parallel fetch + pre-buffered sequential playback.
-   * As each URL resolves, immediately builds an Audio element and calls .load()
-   * so the browser decodes/buffers it DURING playback of the previous phrase.
-   * When it is time to play, the element is already ready → zero gap.
+   * If lang === 'ru', uses Web Speech API instead.
    */
-  const speakStream = useCallback(async (text, onEnd) => {
+  const speakStream = useCallback(async (text, onEnd, lang) => {
     stop();
     if (!text?.trim()) { onEnd?.(); return; }
+
+    // Russian → Web Speech API
+    if (lang === 'ru') {
+      activeRef.current = true;
+      const chunks = splitChunks(text);
+      for (const chunk of chunks) {
+        if (!activeRef.current) return;
+        await speakWebSpeech(chunk, 'ru-RU');
+      }
+      if (activeRef.current) onEnd?.();
+      return;
+    }
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;

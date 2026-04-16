@@ -3,13 +3,17 @@ import BackgroundLayout from './BackgroundLayout';
 import PageHeader from './PageHeader';
 import { useSpeechToText } from '../hooks/useSpeech';
 import { Mic, MicOff, Trash2 } from 'lucide-react';
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 export default function SpeechToTextPanel({ onBack }) {
   const { transcript, isListening, startListening, stopListening, clearTranscript } = useSpeechToText();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
 
   return (
     <BackgroundLayout overlayOpacity="bg-black/80">
-      <PageHeader title="Сөйлеуді мәтінге" subtitle="Тыңдап, мәтінге айналдырамыз" onBack={onBack} />
+      <PageHeader title={t.sttTitle} subtitle={t.sttSubtitle} onBack={onBack} />
 
       <div className="flex-1 flex flex-col px-5 pb-5 gap-4">
         {/* Transcript area */}
@@ -20,7 +24,7 @@ export default function SpeechToTextPanel({ onBack }) {
             </p>
           ) : (
             <p className="text-white/30 text-xl font-body text-center mt-10">
-              {isListening ? 'Сөйлеңіз, мәтін осында пайда болады...' : 'Бастау үшін микрофон түймесіне басыңыз'}
+              {isListening ? t.sttListening : t.sttIdle}
             </p>
           )}
         </div>
@@ -38,7 +42,7 @@ export default function SpeechToTextPanel({ onBack }) {
             </motion.button>
           )}
           <button
-            onClick={isListening ? stopListening : () => startListening('kk-KZ')}
+            onClick={isListening ? stopListening : () => startListening(lang === 'kk' ? 'kk-KZ' : 'ru-RU')}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg ${
               isListening 
                 ? 'bg-red-500 shadow-red-500/30 animate-pulse' 

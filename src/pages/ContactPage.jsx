@@ -4,6 +4,8 @@ import BackgroundLayout from '../components/BackgroundLayout';
 import PageHeader from '../components/PageHeader';
 import AccessibleButton from '../components/AccessibleButton';
 import { Phone, MessageCircle, Send } from 'lucide-react';
+import { useLang } from '../lib/LangContext';
+import { TEXTS } from '../lib/i18n';
 
 const PHONE_NUMBER = "+7 775 451 4282";
 const MSG = encodeURIComponent('Сәлеметсіз бе! Маған кесенеде көмек керек.');
@@ -14,12 +16,14 @@ const CONTACTS = [
 
 export default function ContactPage() {
   const navigate = useNavigate();
+  const { lang } = useLang();
+  const t = TEXTS[lang];
 
   return (
     <BackgroundLayout overlayOpacity="bg-black/75">
       <PageHeader 
-        title="Менеджермен байланыс" 
-        subtitle="Ыңғайлы байланыс тәсілін таңдаңыз"
+        title={t.contactTitle} 
+        subtitle={t.contactSubtitle}
         onBack={() => navigate(-1)}
       />
       
@@ -32,7 +36,7 @@ export default function ContactPage() {
         <a href={`tel:${PHONE_NUMBER}`} className="block">
           <AccessibleButton
             icon={<Phone className="w-7 h-7 text-emerald-400" />}
-            label="Қоңырау шалу"
+            label={t.callBtn}
             sublabel={PHONE_NUMBER}
             variant="glass"
             size="xl"
@@ -79,8 +83,7 @@ export default function ContactPage() {
           className="mt-4 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl p-5"
         >
           <p className="text-white/60 font-body text-base leading-relaxed">
-            Кесене менеджері күн сайын сағат 9:00-ден 18:00-ге дейін қол жетімді.
-            Хабарласқанда кесене ішіндегі орналасқан жеріңізді және қажетті көмек түрін көрсетіңіз.
+            {t.contactInfo}
           </p>
         </motion.div>
       </motion.div>

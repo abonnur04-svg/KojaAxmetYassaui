@@ -60,6 +60,47 @@ const STATIC_PHRASES = [
   'Мен сізді түсінбеймін.',
 ];
 
+// Priority groups for sequential pre-generation (group by page)
+const PHRASE_GROUPS = [
+  // Group 1 — StartPage (most important, loaded first)
+  [
+    'Қожа Ахмет Яссауи кесенесінің инклюзивті гидіне қош келдіңіз. Бір рет басыңыз — көрмейтіндер режімі. Екі рет басыңыз — естімейтіндер режімі. Үш рет басыңыз — көмек режімі.',
+    'Сіз таңдадыңыз: Көрмейтіндер режимі',
+    'Сіз таңдадыңыз: Естімейтіндер режимі',
+    'Сіз таңдадыңыз: Көмек режимі',
+    'Өтінеміз, бір, екі немесе үш рет басыңыз.',
+  ],
+  // Group 2 — BlindMode (instructions + actions)
+  [
+    'Көрмейтіндер режімі. Бір рет басыңыз — артқа. Екі рет — менеджермен байланыс. Үш рет — камераны ашу. Төрт рет — аудио гид.',
+    'Артқа оралуда',
+    'Менеджерге қоңырау шалынуда',
+    'Камера ашылуда',
+    'Аудио гид басталуда.',
+    'Аудио гид аяқталды. Бір рет басыңыз — артқа.',
+    'Аудио гид тоқтатылды.',
+  ],
+  // Group 3 — BlindMode audio guide + Camera + Quick phrases
+  [
+    'Кіріспе. Қожа Ахмет Яссауи кесенесі — Түркістан қаласында орналасқан орта ғасыр сәулетінің асыл туындысы. Ол XIV ғасырдың соңында Темірдің бұйрығымен салынған және ЮНЕСКО-ның Дүниежүзілік мұра тізіміне енгізілген.',
+    'Бас күмбез. Кесененің бас күмбезі Орталық Азиядағы ең ірілерінің бірі. Оның диаметрі шамамен он сегіз метр. Күмбез темір дәуірінің сәулетіне тән көгілдір глазурланған кірпішпен қапталған.',
+    'Қазандық. Орталық залда ритуалдық су үшін алып қола қазан орналасқан. Оның диаметрі екі метрден асады, ал салмағы шамамен екі тонна. Қазан араб жазулары мен өсімдік өрнектерімен безендірілген.',
+    'Яссауи зираты. Қожа Ахмет Яссауи зираты жеке бөлмеде орналасқан. Қабір тасы сұр-жасыл тастан жасалған және ою-өрнектермен безендірілген. Яссауи XII ғасырдың ұлы сопылық ақыны және ойшылы болды.',
+    'Ішкі безендіру. Кесене қабырғалары мозаика және тас ою-өрнектермен безендірілген. Геометриялық өрнектер мен каллиграфиялық жазулар бірегей атмосфера жасайды. Безендіру элементтерінің көпшілігі алты жүз жылдан астам уақыт бойы сақталған.',
+    'Камера ашылды. Бір рет басыңыз — артқа. Екі рет — суретке түсіру.',
+    'Сурет түсірілуде. Күте жасаңыз.',
+    'Суретті талдау мүмкін болмады. Қайталап көріңіз.',
+    'Дәретхана қайда?',
+    'Қайда жүруім керек?',
+    'Шығу қайда?',
+    'Менеджерді шақырыңыз.',
+    'Маған көмек керек.',
+    'Рахмет!',
+    'Күте жасаңыз.',
+    'Мен сізді түсінбеймін.',
+  ],
+];
+
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 // Clean cache files older than 7 days on startup
@@ -117,19 +158,22 @@ async function synthesize(text) {
 }
 
 async function pregenerate() {
-  const BATCH = 5; // parallel requests to Yandex
   let generated = 0;
   let cached = 0;
-  const todo = [];
-  for (const phrase of STATIC_PHRASES) {
-    const fp = getCachePath(phrase);
-    if (fs.existsSync(fp)) { cached++; continue; }
-    todo.push(phrase);
-  }
-  for (let i = 0; i < todo.length; i += BATCH) {
-    const batch = todo.slice(i, i + BATCH);
+  const total = PHRASE_GROUPS.reduce((n, g) => n + g.length, 0);
+
+  for (let gi = 0; gi < PHRASE_GROUPS.length; gi++) {
+    const group = PHRASE_GROUPS[gi];
+    const todo = [];
+    for (const phrase of group) {
+      const fp = getCachePath(phrase);
+      if (fs.existsSync(fp)) { cached++; continue; }
+      todo.push(phrase);
+    }
+    if (todo.length === 0) continue;
+    console.log(`Pre-gen group ${gi + 1}/${PHRASE_GROUPS.length}: ${todo.length} phrases`);
     const results = await Promise.allSettled(
-      batch.map(async (phrase) => {
+      todo.map(async (phrase) => {
         const wav = await synthesize(phrase);
         fs.writeFileSync(getCachePath(phrase), wav);
         return phrase;
@@ -140,7 +184,7 @@ async function pregenerate() {
       else console.error(`Pre-gen failed:`, r.reason?.message);
     }
   }
-  console.log(`Pre-generation: ${generated} new, ${cached} cached, ${STATIC_PHRASES.length} total`);
+  console.log(`Pre-generation: ${generated} new, ${cached} cached, ${total} total`);
 }
 
 const ALLOWED_ORIGINS = [
