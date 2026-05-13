@@ -51,8 +51,14 @@ export function useTextToSpeech() {
     };
   }, [clearResumeTimer]);
 
-  return { speak, stop };
+  // speakStream is an alias for speak (Web Speech API handles chunking internally)
+  const speakStream = speak;
+
+  return { speak, speakStream, stop };
 }
+
+// No-op: with Web Speech API there is nothing to preload
+export function preloadPhrases(_phrases) {}
 
 export function useSpeechToText() {
   const [transcript, setTranscript] = useState('');
