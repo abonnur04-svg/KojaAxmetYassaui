@@ -1,0 +1,145 @@
+РОЛЬ: Ты — fullstack‑инженер с 25‑летним стажем (Node.js, Python, Express, React, Web Audio API, MediaSource Extensions, потоковый HTTP, Yandex SpeechKit, Web Speech API). Пишешь продакшн‑код: атомарные изменения, без оверинжиниринга, без лишних абстракций, обработка ошибок только на границах системы.
+
+═══════════════════════════════════════════════════════════════
+ВАЖНО — ТЕКУЩИЙ TTS‑СТЕК (НИКАКОГО PIPER!)
+═══════════════════════════════════════════════════════════════
+
+Мы БОЛЬШЕ НЕ используем локальный Piper TTS. Любой код, упоминания, файлы и зависимости, связанные с Piper, должны игнорироваться или удаляться. Аудио синтезируется ТОЛЬКО через:
+
+1. Казахский язык (kk-KZ) → Yandex SpeechKit TTS (cloud REST API).
+   Эндпоинт: https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize
+   Auth: Authorization: Api-Key <YANDEX_API_KEY>  (читать из process.env.YANDEX_API_KEY)
+   Параметры: lang=kk-KK (или поддерживаемый Yandex), voice=<подходящий>, format=oggopus, sampleRateHertz=48000.
+
+2. Русский язык (ru-RU) → браузерный Web Speech API (window.speechSynthesis), БЕЗ серверных запросов вообще. Используется SpeechSynthesisUtterance с lang='ru-RU' и подходящим русским голосом.
+
+═══════════════════════════════════════════════════════════════
+КОНТЕКСТ ПРОЕКТА (Vite + React + Express)
+═══════════════════════════════════════════════════════════════
+
+- Фронт: src/components/TextToSpeechPanel.jsx → вызывает speak(text, lang) из src/hooks/useSpeech.js
+- Хук: src/hooks/useSpeech.js — useTextToSpeech(): сейчас делает fetch к localhost:3001/api/tts, ждёт response.blob() (целый файл!), потом new Audio(URL.createObjectURL(blob)).play(). Это и есть источник 5–10 секундной задержки.
+- Бек: server/index.js (Express, порт 3001) — должен стать ТОНКИМ прокси к Yandex SpeechKit (с кешированием), без Python, без Piper.
+- Список фраз: QUICK_PHRASES в src/components/TextToSpeechPanel.jsx.
+- Старые файлы server/piper_tts.py, models/piper/*, models/kk_KZ-issai-high/* — НЕ используются. В новом коде на них НЕ ссылаться. Не удаляй файлы с диска, но в server/index.js убери spawn(python ...) и всю логику Piper.
+
+═══════════════════════════════════════════════════════════════
+ПРОБЛЕМА
+═══════════════════════════════════════════════════════════════
+
+Пользователь жмёт фразу — звук стартует через 5–10 минут (для длинных текстов) или 5–10 секунд (для коротких). Причина:
+- Текст целиком уходит в Yandex и сервер ждёт ВЕСЬ ответ перед отдачей клиенту.
+- Клиент ждёт ВЕСЬ blob перед audio.play().
+- Нет разбиения на предложения, нет стриминга, нет кеша, нет прогрева.
+
+ЦЕЛЬ: time-to-first-audio = 300–800 мс. Полное озвучивание любого реалистичного текста — 3–5 секунд до старта воспроизведения, дальше — без пауз (gapless).
+
+═══════════════════════════════════════════════════════════════
+ЗАДАЧА
+═══════════════════════════════════════════════════════════════
+
+Реализуй low‑latency TTS‑пайплайн: разбиение текста на семантические чанки → параллельный синтез чанков в Yandex → стриминг готовых аудио‑чанков клиенту по мере готовности → инкрементальное воспроизведение в браузере через Web Audio API. Для русского — мгновенный Web Speech API без сети.
+
+═══════════════════════════════════════════════════════════════
+ТРЕБОВАНИЯ
+═══════════════════════════════════════════════════════════════
+
+──────────────────── 1. Бекенд (server/index.js) ────────────────────
+
+- Полностью УДАЛИ spawn Python‑процесса, переменные piperProcess, piperReady, PIPER_PORT, PYTHON_EXE, MODEL_PATH, PIPER_SCRIPT, функцию proxyToPiper и всё, что с ними связано.
+- Добавь модуль server/yandex-tts.js: функция synthesizeChunk(text, { lang, voice, format }) → возвращает Promise<Buffer> с аудио (oggopus). Использует global fetch (Node 20+). Auth через Api-Key из process.env.YANDEX_API_KEY. Таймаут 15 с. Ретрай 1 раз на 5xx/network ошибки.
+- Утилита splitText(text): сначала по [.!?…\n], потом длинные предложения по [,;:] с лимитом 120 символов. Юникод‑safe. Сохраняет порядок. Возвращает массив непустых строк.
+- Эндпоинт POST /api/tts/stream:
+  * Body: { text, lang, voice? }
+  * Если lang начинается с 'ru' → отвечает 400 { error: 'use_browser_tts' } (русский должен играться браузером).
+  * Делит текст через splitText.
+  * Параллельный синтез: пул из 3 одновременных запросов к Yandex (через простой semaphore написать руками, БЕЗ npm‑зависимости). Результаты собираются в массив futures, отправляются клиенту СТРОГО ПО ПОРЯДКУ: ждём future[i], пишем 4 байта uint32 BE (длина) + байты в res, flush, идём к future[i+1].
+  * Заголовки: Content-Type: application/octet-stream, X-Audio-Format: oggopus, X-Sample-Rate: 48000, X-Chunk-Count: <N>. Transfer-Encoding: chunked включится автоматически когда не задан Content-Length.
+  * decision: фрейминг 4‑байтовый length-prefix перед каждым чанком — простой парсинг на клиенте, без MSE.
+- Эндпоинт POST /api/tts (legacy fallback): один запрос в Yandex со всем текстом, отдаёт целый opus‑буфер. Оставь рабочим.
+- LRU‑кеш в памяти (Map с переупорядочиванием), ключ = sha256(`${lang}|${voice}|${text}`), значение = Buffer чанка. Cap: 200 записей, ~100 МБ суммарно. Проверяй кеш ПЕРЕД каждым запросом к Yandex (на уровне отдельного чанка — это даёт максимальный hit-rate, потому что одинаковые предложения встречаются часто).
+- Дисковый кеш: ROOT/tts-cache/<sha>.opus — пиши после успешного синтеза, читай при cold start. Атомарная запись через .tmp + fs.rename.
+- Эндпоинт POST /api/tts/prewarm: { phrases: string[], lang } — синтезирует все в кеш, не блокируя (return 202 сразу, работа в фоне).
+- Эндпоинт GET /api/health → { status: 'ok', yandexConfigured: !!process.env.YANDEX_API_KEY }.
+- На старте сервера (после listen) — если YANDEX_API_KEY есть, асинхронно дёрни prewarm для QUICK_PHRASES (импортируй из общего модуля, см. ниже).
+- Логи с тегом [yandex] и тайм‑стампами: time-to-first-yandex-byte, total chunk duration. Никаких console.log внутри hot path без меры.
+- MAX_TEXT_LENGTH = 5000.
+
+──────────────────── 2. Общий список фраз ────────────────────
+
+- Создай src/lib/quick-phrases.js: export const QUICK_PHRASES = [...] (тот же массив, что сейчас в TextToSpeechPanel.jsx).
+- Импортируй его и в TextToSpeechPanel.jsx, и в server/index.js (server/index.js это ESM, относительный import работает).
+
+──────────────────── 3. Фронтенд (src/hooks/useSpeech.js) ────────────────────
+
+Полностью перепиши useTextToSpeech. Логика speak(text, lang):
+
+A. Если lang.startsWith('ru'):
+   - Использовать window.speechSynthesis. Создать SpeechSynthesisUtterance(text), lang='ru-RU', выбрать русский голос из speechSynthesis.getVoices() (учесть, что voices грузятся асинхронно — слушать voiceschanged один раз и кешировать выбранный голос).
+   - speechSynthesis.cancel() перед speak. onstart → setIsPlaying(true), onend → setIsPlaying(false).
+   - Никаких сетевых запросов.
+
+B. Иначе (kk-KZ и любой другой) — Yandex стрим:
+   - Лениво создаём AudioContext (по первому пользовательскому жесту), храним в useRef. Если ctx.state === 'suspended' → await ctx.resume().
+   - fetch('/api/tts/stream', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text,lang}), signal: abortController.signal }).
+   - Читаем response.body.getReader() побайтово, парсим length-prefix фрейминг: накапливаем буфер, читаем 4 байта uint32 BE = длина чанка, дальше столько байт opus‑данных. Повторяем пока поток не закроется.
+   - Каждый собранный opus‑чанк декодируем через ctx.decodeAudioData(arrayBuffer.slice()) → AudioBuffer.
+   - Поддерживаем nextStartTime: для каждого AudioBuffer создаём BufferSource, source.connect(ctx.destination), startAt = Math.max(ctx.currentTime + 0.02, nextStartTime); source.start(startAt); nextStartTime = startAt + buffer.duration. Gapless playback по мере поступления.
+   - На первом успешно сыгранном чанке: setIsLoading(false), setIsPlaying(true).
+   - Храним массив активных sources для stop(). Освобождаем ссылки в source.onended.
+
+stop():
+   - speechSynthesis.cancel() (на всякий)
+   - abortController.abort()
+   - Для каждого активного BufferSource: try { src.stop(0); } catch {}
+   - Очищаем очередь, сбрасываем nextStartTime = 0.
+
+Состояния: isPlaying, isLoading, isStreaming, error.
+
+useEffect cleanup → stop() + ctx?.close() (только при unmount).
+
+──────────────────── 4. Прогрев на фронте ────────────────────
+
+- В TextToSpeechPanel.jsx на mount: GET /api/health, если ok и yandexConfigured — в requestIdleCallback дёрни POST /api/tts/prewarm с { phrases: QUICK_PHRASES, lang:'kk-KZ' }. Один раз.
+
+──────────────────── 5. ENV и конфиг ────────────────────
+
+- Добавь в README или .env.example строку: YANDEX_API_KEY=AQVN... (Api-Key из Yandex Cloud, роль ai.speechkit-tts.user).
+- Если YANDEX_API_KEY отсутствует — server при старте печатает явное предупреждение и /api/tts/stream возвращает 503 { error: 'yandex_not_configured' }.
+
+──────────────────── 6. Качество кода ────────────────────
+
+- TypeScript НЕ вводи (проект на JSX/JS).
+- Никаких новых npm‑зависимостей (используй встроенный fetch Node 20+, crypto, fs/promises). Никакого p-limit, axios, ws — всё руками.
+- Никаких упоминаний Piper в новом коде. server/piper_tts.py не запускать и не импортировать.
+- Сохрани существующую структуру файлов. Новые файлы ТОЛЬКО: server/yandex-tts.js, src/lib/quick-phrases.js.
+- Не трогай UI кроме минимального добавления prewarm‑эффекта в TextToSpeechPanel.jsx.
+
+═══════════════════════════════════════════════════════════════
+ACCEPTANCE CRITERIA
+═══════════════════════════════════════════════════════════════
+
+1. Русский (lang='ru-RU') — звук стартует мгновенно (< 100 мс), без сети, через Web Speech API.
+2. Казахский короткая фраза из QUICK_PHRASES после прогрева — < 400 мс от клика до первого звука.
+3. Казахский холодный текст 200–400 символов — первый звук < 1.2 с, дальше без пауз.
+4. Казахский текст 1500 символов — общее время до КОНЦА воспроизведения ≈ длительность аудио + ≤ 2 с.
+5. stop() мгновенно глушит звук И рвёт сетевой запрос, без «хвоста».
+6. Кеш работает: повторный запрос той же фразы — TTFA < 200 мс (из памяти) или < 400 мс (с диска).
+7. Если YANDEX_API_KEY не задан — внятная ошибка в UI, без зависаний.
+8. В коде НЕТ слова "piper" нигде, кроме исходных неиспользуемых файлов.
+
+═══════════════════════════════════════════════════════════════
+ФОРМАТ ОТВЕТА
+═══════════════════════════════════════════════════════════════
+
+1. Краткий план (5–8 буллетов) — что меняешь и почему.
+2. Полный код всех изменённых файлов отдельными блоками с путями.
+3. Новые файлы — отдельными блоками.
+4. .env.example фрагмент.
+5. Команды запуска и curl‑примеры:
+   - curl на /api/tts/stream с парсингом length-prefix
+   - curl на /api/tts/prewarm
+   - curl на /api/health
+6. Один абзац «подводные камни»: autoplay policy Chrome (AudioContext.resume по жесту), Yandex квоты/throttling и обработка 429, decodeAudioData кушает память на длинных текстах (освобождать ссылки после source.onended), CORS если фронт и бек на разных портах, голоса Web Speech грузятся асинхронно, encoding кириллицы/казахских символов в JSON body (всегда UTF‑8).
+
+Не задавай уточняющих вопросов — реализуй по этим спецификациям. При мелкой неоднозначности выбирай разумный дефолт и помечай однострочным комментарием // decision: ...

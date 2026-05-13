@@ -2,14 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import BackgroundLayout from '../components/BackgroundLayout';
-import { useTextToSpeech, preloadPhrases } from '../hooks/useSpeech';
+import { useTextToSpeech } from '../hooks/useSpeech';
 import { Eye, EarOff, Accessibility } from 'lucide-react';
 
 const MODES = [
   { 
     taps: 1, 
     path: '/blind', 
-    label: 'Көрмейтіндер режимі', 
+    label: 'Режим для незрячих', 
     icon: <Eye className="w-8 h-8" />,
     color: 'from-cyan-500/30 to-blue-600/30',
     borderColor: 'border-cyan-400/40'
@@ -17,7 +17,7 @@ const MODES = [
   { 
     taps: 2, 
     path: '/deaf', 
-    label: 'Естімейтіндер режимі',
+    label: 'Режим для глухих',
     icon: <EarOff className="w-8 h-8" />,
     color: 'from-amber-500/30 to-orange-600/30',
     borderColor: 'border-amber-400/40'
@@ -25,20 +25,14 @@ const MODES = [
   { 
     taps: 3, 
     path: '/mobility', 
-    label: 'Көмек режимі',
+    label: 'Режим помощи',
     icon: <Accessibility className="w-8 h-8" />,
     color: 'from-emerald-500/30 to-green-600/30',
     borderColor: 'border-emerald-400/40'
   },
 ];
 
-const INSTRUCTION_TEXT = 'Қожа Ахмет Яссауи кесенесінің инклюзивті гидіне қош келдіңіз. Бір рет басыңыз — көрмейтіндер режімі. Екі рет басыңыз — естімейтіндер режімі. Үш рет басыңыз — көмек режімі.';
-
-const PRELOAD = [
-  INSTRUCTION_TEXT,
-  'Өтінеміз, бір, екі немесе үш рет басыңыз.',
-  ...MODES.map(m => `Сіз таңдадыңыз: ${m.label}`),
-];
+const INSTRUCTION_TEXT = 'Қожа Ахмет Ясауи кесенесінің инклюзивті гидіне қош келдіңіз. Бір рет басыңыз — көзі көрмейтіндер режимі. Екі рет басыңыз — естімейтіндер режимі. Үш рет басыңыз — көмек режимі.';
 
 export default function StartPage() {
   const navigate = useNavigate();
@@ -51,27 +45,16 @@ export default function StartPage() {
   const hasSpokenRef = useRef(false);
   const lastTouchTimeRef = useRef(0);
 
-  useEffect(() => { preloadPhrases(PRELOAD); }, []);
-
   const playInstruction = useCallback(() => {
     speak(INSTRUCTION_TEXT);
   }, [speak]);
 
-  // Play instruction on first user interaction (browsers block autoplay without gesture)
-  const hasPlayedRef = useRef(false);
   useEffect(() => {
-    const playOnFirstInteraction = () => {
-      if (!hasPlayedRef.current) {
-        hasPlayedRef.current = true;
-        playInstruction();
-      }
-    };
-    document.addEventListener('click', playOnFirstInteraction, { once: true });
-    document.addEventListener('touchstart', playOnFirstInteraction, { once: true });
-    return () => {
-      document.removeEventListener('click', playOnFirstInteraction);
-      document.removeEventListener('touchstart', playOnFirstInteraction);
-    };
+    if (!hasSpokenRef.current) {
+      hasSpokenRef.current = true;
+      const t = setTimeout(playInstruction, 800);
+      return () => clearTimeout(t);
+    }
   }, [playInstruction]);
 
   // Repeat instruction every 15 seconds if no selection
@@ -100,10 +83,10 @@ export default function StartPage() {
         const mode = MODES.find(m => m.taps === current);
         if (mode) {
           setSelectedMode(mode);
-          speak(`Сіз таңдадыңыз: ${mode.label}`);
-          setTimeout(() => navigate(mode.path), 3000);
+          speak(`Вы выбрали: ${mode.label}`);
+          setTimeout(() => navigate(mode.path), 2000);
         } else {
-          speak('Өтінеміз, бір, екі немесе үш рет басыңыз.');
+          speak('Пожалуйста, нажмите один, два или три раза.');
           return 0;
         }
         return current;
@@ -139,15 +122,15 @@ export default function StartPage() {
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
             <span className="text-primary font-heading font-medium text-sm tracking-widest uppercase">
-              Инклюзивті гид
+              Инклюзивный гид
             </span>
           </div>
           <h1 className="font-heading font-bold text-4xl md:text-6xl text-white leading-tight">
-            Қожа Ахмет
+            Мавзолей
             <br />
-            <span className="text-primary">Яссауи</span>
+            <span className="text-primary">Ходжи Ахмеда</span>
             <br />
-            кесенесі
+            Яссауи
           </h1>
         </motion.div>
 
@@ -179,7 +162,7 @@ export default function StartPage() {
                 )}
               </div>
               <p className="text-white/80 text-center text-lg md:text-xl font-body mt-6 max-w-sm leading-relaxed">
-                Режимді таңдау үшін экранға басыңыз
+                Нажмите на экран, чтобы выбрать режим
               </p>
             </motion.div>
           )}
@@ -199,7 +182,7 @@ export default function StartPage() {
                   {selectedMode.label}
                 </span>
               </div>
-              <p className="text-white/50 mt-4 font-body">Өтуде...</p>
+              <p className="text-white/50 mt-4 font-body">Переход...</p>
             </motion.div>
           )}
         </AnimatePresence>

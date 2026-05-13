@@ -27,11 +27,12 @@ dist-ssr
 *.sln
 *.sw?
 
-# Piper TTS
-.venv/
-models/
-.tts-cache/
-
 .env
 .vite
+
+# Piper TTS / cache (large binaries)
+models/piper/
+.tts-cache/
+tts-cache/
 *.wav
+*.onnx
